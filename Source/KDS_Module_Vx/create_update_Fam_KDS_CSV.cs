@@ -19,7 +19,7 @@ namespace KDS_Module
     {
         const string csvFilePath = "Z:\\BIM\\Families\\SupplierCode\\CI_NH_fittings_Charlotte_KDS.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
 #if (RVT2022) 
-        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2022\\KDS_SHARED_PARAMS.txt";    // Shared Parmeters.. this is how we get into the family parameters.  i am still not sure if this is best to use.
+        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2022\\KDS_SHARED_PARAMS.txt";            // Shared Parmeters.. this is how we get into the family parameters.  i am still not sure if this is best to use.
 #elif (RVT2021)
         const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2021\\KDS_SHARED_PARAMS.txt";
 #elif (RVT2020)
