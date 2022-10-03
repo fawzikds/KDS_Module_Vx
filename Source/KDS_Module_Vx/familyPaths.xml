@@ -1,0 +1,4 @@
+<xml>
+<!--- Extra optional paths where Revit should search for .rfa files -->
+<FamilyPath pathname="Z:\BIM\Families\KDS_CI_NH\KDS_Char_CI_NH\"></FamilyPath>
+</xml>

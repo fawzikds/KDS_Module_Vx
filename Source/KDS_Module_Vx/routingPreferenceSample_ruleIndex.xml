@@ -1,0 +1,87 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<!--- Pipe size and roughness units of this document must match the corresponding units in the document. -->
+<RoutingPreferenceBuilder_ruleIndex pipeSizeUnits="DUT_FRACTIONAL_INCHES" pipeRoughnessUnits="DUT_DECIMAL_INCHES">
+   
+  <!--- Declare all families to load. If a family already exists in the document, it will be ignored. --> 
+  <Family filename="KDS_Char_CI_NH_BlindPlug.rfa" />
+  <Family filename="KDS_Char_CI_NH_Combo.rfa" />
+  <Family filename="KDS_Char_CI_NH_Combo_Dbl.rfa" />
+  <Family filename="KDS_Char_CI_NH_Cross.rfa" />
+  <Family filename="KDS_Char_CI_NH_QuarterBend.rfa" />
+  <Family filename="KDS_Char_CI_NH_QuarterBend_Dbl.rfa" />
+  <Family filename="KDS_Char_CI_NH_P_Trap_TapHeel.rfa" />
+  <Family filename="KDS_Char_CI_NH_P_Trap.rfa" />
+  <Family filename="KDS_Char_CI_NH_IncrRed.rfa" />
+  <Family filename="KDS_Char_CI_NH_Wye.rfa" />
+  <Family filename="KDS_Char_CI_NH_Wye_Dbl.rfa" />
+  <Family filename="KDS_Char_CI_NH_ShortReducer.rfa" />
+  <Family filename="KDS_Char_CI_NH_SanTee.rfa" /> 
+  <Family filename="KDS_Char_CI_NH_EightBend.rfa" />
+  <Family filename="KDS_Char_CI_NH_ShortSweep.rfa" />
+  <Family filename="KDS_Char_CI_NH_Poly_Tee.rfa"/>
+
+
+  <!--- Declare all new Pipe Types to create. If a pipe type already exists in the document, it will be ignored. -->
+  <PipeType name="AnotherPipeType" />
+   
+  <!--- Declare all new Pipe Schedule Types to create. If a pipe schedule type already exists in the document, it will be ignored. -->
+  <PipeScheduleType name="Z"/>
+
+  <!--- Declare all new Pipe Segments to create using materials existing in the document and pipe schedule types that were declared above or already exist in the document. If a Pipe Segment type already exists in the document, it will be ignored. -->
+  <PipeSegment pipeScheduleTypeName="Z" materialName="Steel, Carbon" roughness="0.0018">
+    <MEPSize innerDiameter="2.067" nominalDiameter="2" outerDiameter="2.375" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="2.469" nominalDiameter="2.5" outerDiameter="2.875" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="3.068" nominalDiameter="3" outerDiameter="3.5" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="3.548" nominalDiameter="3.5" outerDiameter="4" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="4.026" nominalDiameter="4" outerDiameter="4.5" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="5.047" nominalDiameter="5" outerDiameter="5.563" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="6.065" nominalDiameter="6" outerDiameter="6.625" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="7.981" nominalDiameter="8" outerDiameter="8.625" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="10.02" nominalDiameter="10" outerDiameter="10.75" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="11.938" nominalDiameter="12" outerDiameter="12.75" usedInSizeLists="true" usedInSizing="true" />
+    <MEPSize innerDiameter="13.126" nominalDiameter="14" outerDiameter="14" usedInSizeLists="true" usedInSizing="true" />
+  </PipeSegment>
+
+   <!--- Declare all new routing preferences rules to create using fittings, segments, and pipeTypes declared above or already included in the document. -->
+   <RoutingPreferenceManager pipeTypeName="AnotherPipeType" preferredJunctionType="Tee">
+   <!--- indexRule is NOT Optional even though .XSD specifies it as optional, and original SDK code was written without indexRule feature. -->
+   <!--- if indexRule is not assigned, it is considered 0 -->
+   <!--- indexRule can have any integer value 0,1,2,3.... -->
+   <!--- indexRule = 0 marks the default Family. -->
+   <!--- indexRule = 0 Should be placed for the first rule of each ruleGroup. -->
+   <!--- indexRule should increment in order.  cannot do index order: 0,2,1,3.... -->
+   <!--- indexRule cannot skip and increment.  cannot do index order: 0,2,3,4.... -->   
+   <!--- If multiple Families are indexed at 0, then the one listed last from these families would be the default. The Other will be moved to the bottom of the list in reverse order of they are listed here. -->
+
+    <!-- Assign Elbow Fittings -->
+    <RoutingPreferenceRule description="" ruleGroup="Elbows" minimumSize="All" partName="KDS_Char_CI_NH_ShortSweep Standard" ruleIndex="0" />
+    <RoutingPreferenceRule description="" ruleGroup="Elbows" minimumSize="All" partName="KDS_Char_CI_NH_QuarterBend Standard" ruleIndex="1"/>
+    <RoutingPreferenceRule description="" ruleGroup="Elbows" minimumSize="All" partName="KDS_Char_CI_NH_EightBend Standard"  ruleIndex="2"/>
+    <RoutingPreferenceRule description="" ruleGroup="Elbows" minimumSize="All" partName="KDS_Char_CI_NH_P_Trap Standard"  ruleIndex="3"/>
+
+    <!-- Assign Junction Fittings. In this case the Preferred Junction was assigned to TEE, so we have Tees, Combos and Wyes. -->
+    <RoutingPreferenceRule description="" ruleGroup="Junctions" minimumSize="All" partName="KDS_Char_CI_NH_Wye Standard"  ruleIndex="0"/>
+    <RoutingPreferenceRule description="" ruleGroup="Junctions" minimumSize="All" partName="KDS_Char_CI_NH_Combo Standard" ruleIndex="1" />
+    <RoutingPreferenceRule description="" ruleGroup="Junctions" minimumSize="All" partName="KDS_Char_CI_NH_SanTee Standard" ruleIndex="2" />
+   
+    <!-- Assign Cross Fittings -->
+    <RoutingPreferenceRule description="" ruleGroup="Crosses" minimumSize="All" partName="KDS_Char_CI_NH_Combo_Dbl Standard" ruleIndex="0" />
+    <RoutingPreferenceRule description="" ruleGroup="Crosses" minimumSize="All" partName="KDS_Char_CI_NH_Wye_Dbl Standard" ruleIndex="1" />
+
+    <!-- Assign Transitions Fittings -->
+    <RoutingPreferenceRule description="" ruleGroup="Transitions" minimumSize="All" partName="KDS_Char_CI_NH_ShortReducer Standard"  ruleIndex="0" />
+    <RoutingPreferenceRule description="" ruleGroup="Transitions" minimumSize="All" partName="KDS_Char_CI_NH_IncrRed Standard"  ruleIndex="0"/>
+
+    <!-- Assign Unions Fittings -->
+
+    <!-- Assign Flanges Fittings -->
+
+    <!-- Assign Caps Fittings -->
+    <RoutingPreferenceRule description="" ruleGroup="Caps" minimumSize="All" partName="KDS_Char_CI_NH_BlindPlug Standard"  ruleIndex="0"/>
+
+
+
+    <RoutingPreferenceRule description="" ruleGroup="Segments" minimumSize="0.5" maximumSize="12" partName="Steel, Carbon - Z"  ruleIndex="0"/>
+  </RoutingPreferenceManager>
+</RoutingPreferenceBuilder_ruleIndex>

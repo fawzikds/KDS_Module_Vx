@@ -1,0 +1,1009 @@
+using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Plumbing;
+using Autodesk.Revit.DB.Structure;
+using Autodesk.Revit.UI;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+
+
+
+
+namespace KDS_Module
+{
+    [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
+    public class InsertSleeve : IExternalCommand
+    {
+        const string _sleeveString = "KDS_Hilti-FS_CFS_CID";
+        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        {
+            #region // Some Definitions 
+            Document actvDoc = commandData.Application.ActiveUIDocument.Document;
+            UIDocument uiDoc = commandData.Application.ActiveUIDocument;
+            UIApplication uiApp = commandData.Application;
+            Autodesk.Revit.ApplicationServices.Application app = uiApp.Application;
+
+            #endregion  // Some Definitions
+
+            #region   // Get Family of Sleeves and List of all Pipes in Host Doc.
+            // Get The FamilySymbol for the Sleeve
+            FilteredElementCollector sleeveCollector = new FilteredElementCollector(actvDoc);
+            Family sleeveFam = sleeveCollector.OfClass(typeof(Family)).OfType<Family>().FirstOrDefault(f => f.Name.Equals(_sleeveString));
+
+            FamilySymbol sleeveFamSymbol = actvDoc.GetElement(sleeveFam.GetFamilySymbolIds().FirstOrDefault()) as FamilySymbol;
+
+
+            // Get a List of All Pipes that are Vertical and within 2" and 6" size
+            FilteredElementCollector pipeCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Pipe));
+            List<Pipe> pipes_lst = pipeCollector.Cast<Pipe>().ToList();
+            List<Pipe> pipes_size_lst = pipes_lst.Where(p => p.Diameter > 0.146 && p.Diameter < .667).ToList<Pipe>();
+            List<Pipe> pipes_size_slope_lst = pipes_size_lst.Where(p => IsVertical(p)).ToList<Pipe>();
+            TaskDialog.Show("insertSleeve", "All Available Pipes Count: " + pipes_lst.Count +
+               "\n Pipes of size between 2 and 6 inches Count: " + pipes_size_lst.Count +
+               "\n Pipes of correct size and Sloped vertically Count: " + pipes_size_slope_lst.Count);
+            #endregion   // Get Family of Sleeves and List of all Pipes in Host Doc.
+
+
+
+            // For Floors we want to work with the floors from the Architectural model... We will copy and paste these floors in the host DOc sine this is the only way to get their ids in another step.
+            // if this is not available, then we will create temp Floors  insert Sleeves and pipe-floor instersections, then delete these floors.
+
+
+            #region // Logic Statements to determine method of inserting sleeves //
+            // //Check if the Host Doc has any floors.
+            FilteredElementCollector hostDoc_floors_col = new FilteredElementCollector(actvDoc).OfClass(typeof(Floor));  //FLOOR_PARAM_IS_STRUCTURAL
+            List<Floor> hostDoc_floors_lst = hostDoc_floors_col.Cast<Floor>().ToList();
+
+            if (hostDoc_floors_lst.Count != 0 && hostDoc_floors_lst != null)    // --- Host Doc has Floors... So no need to create or Load from linked Docs
+            {
+                TaskDialog.Show("insertSleeves", " Floors Found in Document. \n No Need to Create any Temp Floors. \n Host Document floors Count = " + hostDoc_floors_lst.Count);
+                insertSleeves(commandData.Application, pipes_size_slope_lst, hostDoc_floors_lst, sleeveFamSymbol);
+
+            }
+            else   // No Floors in Host Doc, so Check the Linked Models
+            {
+                List<RevitLinkType> loadedDocsLinkTypes_lst = new List<RevitLinkType>();
+                loadedDocsLinkTypes_lst = load_all_Un_LnkdDocs(actvDoc);
+
+                TaskDialog.Show("insertSleeves", "loadedDocsLinkTypes_lst.Count: " + loadedDocsLinkTypes_lst.Count);
+                foreach (RevitLinkType rvtlnk in loadedDocsLinkTypes_lst)
+                {
+                    TaskDialog.Show("insertSleeves", "\n rvtlnk.id: " + rvtlnk.Id + " - rvtlnk.Name: " + rvtlnk.Name);
+                }
+                
+                List<flrsPerLnkdDoc_strct> flrs_kvp_lst = getFlrs_AllLnkdDocs_lst2(app, BuiltInCategory.OST_Floors);
+
+                foreach (flrsPerLnkdDoc_strct flrs_kvp in flrs_kvp_lst)
+                {
+                    //resetFloor(actvDoc, flrs_kvp.flrsElId_lst); 
+                    copyPasteIds(actvDoc, flrs_kvp.lnkDoc, flrs_kvp.flrsElId_lst);
+
+                }
+//return Result.Succeeded;
+                unload_loadedDocs_lst(loadedDocsLinkTypes_lst);
+                FilteredElementCollector lnkdDocFlr_col = new FilteredElementCollector(actvDoc).OfClass(typeof(Floor));  //FLOOR_PARAM_IS_STRUCTURAL
+                List<Floor> lnkdDocFlr_lst = hostDoc_floors_col.Cast<Floor>().ToList();
+
+                if (lnkdDocFlr_lst.Count != 0 && lnkdDocFlr_lst != null)    // Linked Models has Floors so use them
+                                                                            //if (lnkdDocFlr_col.Count != 0 && lnkdDocFlr_col != null)    // Linked Models has Floors so use them
+                {
+
+                    TaskDialog.Show("insertSleeves", " Floors Found in Linked Document: . \n No Need to Create any Temp Floors. \n Linked Document floors Count = " + lnkdDocFlr_lst.Count);
+                    FilteredElementCollector hostDoc_cpdFlrs_col = new FilteredElementCollector(actvDoc).OfClass(typeof(Floor));  //FLOOR_PARAM_IS_STRUCTURAL
+                    List<Floor> hostDoc_cpdFlrs_lst = hostDoc_floors_col.Cast<Floor>().ToList();
+
+                    insertSleeves(commandData.Application, pipes_size_slope_lst, hostDoc_cpdFlrs_lst, sleeveFamSymbol);
+
+
+                }
+                else   // Neither Host Doc, Nor Linked Docs have Floors, so create ones based on host Doc Levels and get instersections.
+                {
+                    TaskDialog.Show("insertSleeves", "    Neither Host Doc, Nor Linked Docs have Floors defined.  \n - Create Temp Floors based on host Doc Levels. \n - Place Sleeves at instersections with pipes. \n - Delete Temp Floors");
+                    List<Floor> levelsFloors_lst = new List<Floor>();
+                    // Create Temp Floors in Host DOc
+                    levelsFloors_lst = insertLevelFloors(commandData.Application, actvDoc);
+                    TaskDialog.Show("insertSleeves", "Created new Temp Floors. \n levelsFloors_lst.Count = " + levelsFloors_lst.Count);
+                    // Insert Floor Sleeves ata intersections
+                    insertSleeves(commandData.Application, pipes_size_slope_lst, levelsFloors_lst, sleeveFamSymbol);
+
+                    TaskDialog.Show("insertSleeves", " Delete Temp Floors");
+                    // Delete Temp Floors in Host DOc
+                    DeleteFloors(actvDoc);
+                }
+            }
+
+            #endregion
+
+            return Result.Succeeded;
+        }
+
+
+        #region // insertSleeves Function to place sleeve where Pipe and Level intersect --- No Floor exists here. so we need to create floors as well//
+        public void insertSleeves(UIApplication uiApp, List<Pipe> pipes_lst, List<Floor> floors_lst, FamilySymbol sleeveFamSymbol)
+        {
+            #region // Defining and Collection of Elements and Variables //
+
+            UIDocument uidoc = uiApp.ActiveUIDocument;
+            Document actvDoc = uidoc.Document;
+
+
+            List<XYZ> points = new List<XYZ>();
+
+
+            #endregion
+
+
+            #region // Insert Sleeve where Pipe and floor intersect //
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            int index = 0;
+
+            //FilteredElementCollector floorCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Floor));
+            //List<Floor> floors = floorCollector.Cast<Floor>().ToList();
+
+            /*            TaskDialog.Show("insertSleeves", "In insertSleeves Function " +
+                                                         "\nfloors_lst.Count: " + floors_lst.Count +
+                                                         "\npipes_lst.Count: " + pipes_lst.Count);*/
+            FamilyInstance sleeve_famInst = null;
+
+            resetFloor(actvDoc, floors_lst);
+
+            foreach (Pipe p in pipes_lst)
+            {
+                foreach (Floor f in floors_lst)
+                {
+                    Curve pipeCurve = FindPipeCurve(p);
+
+                    XYZ intersection = null;
+
+                    List<Face> floorFaces = FindFloorFace(f);
+
+                    for (int i = 0; i < 1; i++)
+                    {
+                        intersection = FindFaceCurve(pipeCurve, floorFaces[i]);
+                        if (null == intersection)
+                        {
+                            //TaskDialog.Show("insertSleeves", "  In insertSleeves Function " + "\nintersection is NULL !");
+                        }
+                        else //(null != intersection)
+                        {
+                            //TaskDialog.Show("insertSleeves", "  In insertSleeves Function " + "\nInside the !=null intersection block !");
+                            index++;
+                            using (Transaction insertSleeve_trx = new Transaction(actvDoc, "Insert Sleeves"))
+                            {
+                                insertSleeve_trx.Start();
+                                sleeveFamSymbol.Activate();
+                                sleeve_famInst = actvDoc.Create.NewFamilyInstance(intersection, sleeveFamSymbol, f, StructuralType.NonStructural);
+                                insertSleeve_trx.Commit();
+                            }
+
+                            using (Transaction setSleeveParam_trx = new Transaction(actvDoc, "Set Sleeve Parameters - Diameter and System Type"))
+                            {
+                                setSleeveParam_trx.Start();
+                                try
+                                {
+
+                                    // // Set failure handler  .. this is to handle me writing the same value in the Mark parameter which i gues, is not expected.
+                                    var failureOptions = setSleeveParam_trx.GetFailureHandlingOptions();
+                                    failureOptions.SetFailuresPreprocessor(new DuplicateMarkSwallower());
+                                    setSleeveParam_trx.SetFailureHandlingOptions(failureOptions);
+
+                                    //TaskDialog.Show("insertSleeve", " Just Disabled Warnings on Duplicate Mark Values");
+
+                                    //Parameter prm = _p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
+                                    double p_diam = p.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble();
+                                    if (p_diam >= 0.41665 && p_diam <= .41668) { p_diam = 0.5; }
+                                    //TaskDialog.Show("insertSleeve", " p_diam: " + p_diam.ToString());
+
+                                    // Get the Diameter Parameter for the Sleeve THEN set it to the size from the relevant pipe.
+                                    Parameter slv_diam = sleeve_famInst.LookupParameter("Size");
+                                    slv_diam.Set(p_diam + (1.0 / 6.0));
+
+                                    //TaskDialog.Show("insertSleeve", " slv_diam: " + slv_diam.AsValueString());
+
+
+
+                                    // Get the System Type  Parameter for the Sleeve THEN set it to the size from the relevant pipe.
+                                    Parameter p_SysType = p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
+                                    //TaskDialog.Show("insertSleeve", " p_SysType: " + p_SysType.AsValueString());
+
+                                    //Parameter slv_SysType = sleeve_famInst.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
+                                    Parameter slv_Mark = sleeve_famInst.LookupParameter("Mark");
+
+
+                                    //TaskDialog.Show("insrtSleeve", "\n BEFORE set Mark: " + slv_Mark.AsValueString()   );
+
+                                    //slv_SysType.Set(p_SysType.AsValueString());
+                                    slv_Mark.Set(p_SysType.AsValueString());
+
+                                    //TaskDialog.Show("insrtSleeve","AFTER set Mark: " + sleeve_famInst.LookupParameter("Mark").AsValueString());
+                                }
+                                catch (Exception e)
+                                {
+
+                                    TaskDialog.Show("insrtSleeve", "  In insertSleeves Function " + "\nException try to write parameters: e: " + e);
+                                }
+                                setSleeveParam_trx.Commit();
+
+                            }
+
+
+                        }
+                    }
+                }
+
+
+            }
+            watch.Stop();
+            var elapsedTime = watch.ElapsedMilliseconds;
+            TaskDialog.Show("test", "  In insertSleeves Function " + "\n# of sleeves inserted: " + index + "\n execution time : " + elapsedTime / 1000.0 + " seconds");
+            #endregion
+
+            return;
+        }  // End of insertSleeves
+        #endregion  // End of insertSleeves
+
+        #region // Reset the shape of the floors as Elementid 
+        public void resetFloor(Document actvDoc, List<ElementId> floors_lst)
+        {
+            // I Came Across floors that had their shape modified, and the i was not able to insert a sleeve.
+            // So i reset their shape and i was able to insert a sleeve.  this loop does that progrmamtically. (select Floor=>Modify=>reset shape)
+            foreach (ElementId ef in floors_lst)
+            {
+                Floor f = actvDoc.GetElement(ef) as Floor;
+                TaskDialog.Show("insertSleeves", " FOUND IT Floor Element Name : " + f.Name);
+                using (Transaction ResetSlabShape_trx = new Transaction(actvDoc, "Reset the Shape of the floor"))
+                {
+                    try
+                    {
+                        ResetSlabShape_trx.Start();
+                        f.SlabShapeEditor.ResetSlabShape();
+
+                    }
+                    catch (Exception e)
+                    {
+
+                        TaskDialog.Show("insrtSleeve", "  In ResetSlabShape_trx  " + "\nException try to Reset Floor shape: e: " + e);
+                    }
+                    ResetSlabShape_trx.Commit();
+                }
+            }
+        }
+        #endregion  // End of Reset the shape of the floors.
+        #region // Reset the shape of the floors as Floor 
+        public void resetFloor(Document actvDoc, List<Floor> floors_lst)
+        {
+            // I Came Across floors that had their shape modified, and the i was not able to insert a sleeve.
+            // So i reset their shape and i was able to insert a sleeve.  this loop does that progrmamtically. (select Floor=>Modify=>reset shape)
+            foreach (Floor f in floors_lst)
+            {
+                TaskDialog.Show("insertSleeves", " FOUND IT Floor Element Name : " + f.Name);
+                using (Transaction ResetSlabShape_trx = new Transaction(actvDoc, "Reset the Shape of the floor"))
+                {
+                    try
+                    {
+                        ResetSlabShape_trx.Start();
+                        f.SlabShapeEditor.ResetSlabShape();
+
+                    }
+                    catch (Exception e)
+                    {
+
+                        TaskDialog.Show("insrtSleeve", "  In ResetSlabShape_trx  " + "\nException try to Reset Floor shape: e: " + e);
+                    }
+                    ResetSlabShape_trx.Commit();
+                }
+            }
+        }
+        #endregion  // End of Reset the shape of the floors.
+
+        #region // InsertFloor Function to create floor //
+        public Floor InsertFloor(UIApplication uiApp, Level lvl)
+        {
+            UIDocument uidoc = uiApp.ActiveUIDocument;
+            Document actvDoc = uidoc.Document;
+
+            Floor floor = null;
+            #region // Transaction to Create Floor //
+            using (Transaction createFloor = new Transaction(actvDoc, "Create floor"))
+            {
+                createFloor.Start();
+
+
+                // Get a floor type for floor creation
+                FloorType floorType = new FilteredElementCollector(actvDoc).OfClass(typeof(FloorType)).First(e => e.Name.Equals("Generic - 12\"")) as FloorType;   //For Revit 2021 and older
+                ElementId floorTypeId = Floor.GetDefaultFloorType(actvDoc, false);   // For Revit 2022
+
+
+                // The normal vector (0,0,1) that must be perpendicular to the profile.
+                XYZ normal = XYZ.BasisZ;
+
+                XYZ first = new XYZ(500, 500, 0);
+                XYZ second = new XYZ(500, -500, 0);
+                XYZ third = new XYZ(-500, -500, 0);
+                XYZ fourth = new XYZ(-500, 500, 0);
+
+                //CurveArray profile = new CurveArray();   // For revit 2021 and older
+                CurveLoop profile = new CurveLoop();   // for Revit 2022
+                profile.Append(Line.CreateBound(first, second));
+                profile.Append(Line.CreateBound(second, third));
+                profile.Append(Line.CreateBound(third, fourth));
+                profile.Append(Line.CreateBound(fourth, first));
+
+                //floor = actvDoc.Create.NewFloor(profile, floorType, lvl, true, normal);   // For Revit 2021 and older
+
+
+                floor = Floor.Create(actvDoc, new List<CurveLoop> { profile }, floorTypeId, lvl.Id);    // For Revit 2022
+                Parameter param = floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);// For Revit 2022
+                param.Set(5);// For Revit 2022
+
+
+
+                Parameter p = floor.get_Parameter(BuiltInParameter.LEVEL_PARAM);
+                Parameter p1 = floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
+
+                p.Set(lvl.Id);
+                p1.Set(0);
+
+                createFloor.Commit();
+                return floor;
+            }
+            #endregion
+        }
+        #endregion
+
+        #region // DeleteFloor Function to delete floor //
+
+        public void DeleteFloors(Document actvDoc)
+        {
+            FilteredElementCollector floorCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Floor));
+            List<Floor> floors = floorCollector.Cast<Floor>().ToList();
+
+            foreach (Floor floor in floors)
+            {
+                using (Transaction deleteFloors = new Transaction(actvDoc, "Delete Floor"))
+                {
+                    deleteFloors.Start();
+                    actvDoc.Delete(floor.Id);
+                    deleteFloors.Commit();
+                }
+            }
+        }
+        #endregion
+
+        #region // FindPipeCurve Function to get curve of pipe //
+        public Curve FindPipeCurve(Pipe p)
+        {
+            LocationCurve lc = p.Location as LocationCurve;
+            Curve c = lc.Curve;
+            XYZ endpoint1 = c.GetEndPoint(0);
+            XYZ endpoint2 = c.GetEndPoint(1);
+            Curve curve = Line.CreateBound(endpoint1, endpoint2);
+
+            return curve;
+        }
+        #endregion
+
+        #region // FindFloorFace Function to find faces of floor //
+        public List<Face> FindFloorFace(Floor f)
+        {
+            List<Face> normalFaces = new List<Face>();
+
+            Options opt = new Options
+            {
+                ComputeReferences = true,
+                DetailLevel = ViewDetailLevel.Fine
+            };
+
+            GeometryElement e = f.get_Geometry(opt);
+
+            List<Solid> solids = new List<Solid>();
+
+            foreach (GeometryObject obj in e)
+            {
+                Solid solid = obj as Solid;
+                solids.Add(solid);
+
+
+                if (solid != null && solid.Faces.Size > 0)
+                {
+                    foreach (Face face in solid.Faces)
+                    {
+                        PlanarFace pf = face as PlanarFace;
+                        if (pf != null)
+                        {
+                            normalFaces.Add(pf);
+                        }
+                    }
+                }
+            }
+
+            return normalFaces;
+        }
+        #endregion
+
+        #region // FindFaceCurve Function to find intersection of pipe Curve an Floor Face //
+        public XYZ FindFaceCurve(Curve pipeCurve, Face floorFace)
+        {
+            //The intersection point
+            IntersectionResultArray intersectionR = new IntersectionResultArray();//Intersection point set
+
+            SetComparisonResult results;//Results of Comparison
+
+            results = floorFace.Intersect(pipeCurve, out intersectionR);
+
+            XYZ intersectionResult = null;//Intersection coordinate
+
+            if (SetComparisonResult.Disjoint != results)
+            {
+                if (intersectionR != null)
+                {
+                    if (!intersectionR.IsEmpty)
+                    {
+                        intersectionResult = intersectionR.get_Item(0).XYZPoint;
+                    }
+                }
+            }
+            return intersectionResult;
+        }
+        #endregion
+
+        #region // IsVertical Function to declare given pipe as vertical or not //
+        public bool IsVertical(Pipe p)
+        {
+            double tolerance = 0.01;
+            double bottom_elv = p.get_Parameter(BuiltInParameter.RBS_PIPE_BOTTOM_ELEVATION).AsDouble();
+            double top_elv = p.get_Parameter(BuiltInParameter.RBS_PIPE_TOP_ELEVATION).AsDouble();
+            double length = p.LookupParameter("Length").AsDouble();
+            double calcLength, lenDiff_perc;
+
+            if (bottom_elv * top_elv * length != 0)
+            {
+                calcLength = Math.Abs(top_elv - bottom_elv);
+                lenDiff_perc = Math.Abs((length - calcLength) / length);
+
+                if (lenDiff_perc <= tolerance)
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+        #endregion
+
+        #region Tag elements in linked documents
+        /// <summary>
+        /// get floors in all linked documents
+        /// </summary>
+        public List<ElementId> TagAllLinkedFloors(Document actvDoc)
+        {
+
+            List<ElementId> flrs_inAllLnkdDocs_lst = new List<ElementId>();
+            // At first need to find our links
+            FilteredElementCollector collector = new FilteredElementCollector(actvDoc).OfClass(typeof(RevitLinkInstance));
+
+            foreach (Element elem in collector)
+            {
+                // Get linkInstance
+                RevitLinkInstance instance = elem as RevitLinkInstance;
+
+                // Get linkDocument
+                Document linkDoc = instance.GetLinkDocument();
+
+                // Get linkType
+                RevitLinkType type = actvDoc.GetElement(instance.GetTypeId()) as RevitLinkType;
+
+                // Check if link is loaded
+                if (RevitLinkType.IsLoaded(actvDoc, type.Id))
+                {
+                    // Find Floor for tagging
+                    //FilteredElementCollector floors = new FilteredElementCollector(linkDoc).OfCategory(BuiltInCategory.OST_Floors).OfClass(typeof(Floor));
+
+                    // Create reference
+                    TaskDialog.Show("getLnkdDoc", string.Format("\n - Linked document \n '{0}': ", linkDoc.Title));
+                    FilteredElementCollector linkedFamCollector = new FilteredElementCollector(linkDoc);
+                    //ICollection<ElementId> archModelFloors_col = new FilteredElementCollector(lnkdDoc).WhereElementIsNotElementType().OfCategory(BIC_str).ToElementIds();
+                    ICollection<ElementId> archModelFloors_lst = new FilteredElementCollector(linkDoc).WhereElementIsNotElementType().OfCategory(BuiltInCategory.OST_Floors).ToElementIds().ToList();
+                    flrs_inAllLnkdDocs_lst.AddRange(archModelFloors_lst);
+                }
+                else
+                {
+                    var link = elem as RevitLinkType;
+                    var result = link.Load();
+                }
+            }
+            return flrs_inAllLnkdDocs_lst;
+        }
+        #endregion // Tag elements in linked documents
+
+        #region  // Load all Unloaded Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+        public List<RevitLinkType> load_all_Un_LnkdDocs(Document actvDoc)
+        {
+            //ISet<ElementId> xrefs = ExternalResourceUtils.GetAllExternalResourceReferences(actvDoc);
+            FilteredElementCollector rvtLinks = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_RvtLinks);
+            IList<ElementId> rvtLnksElId_lst = rvtLinks.ToElementIds().ToList();
+            List<RevitLinkType> loadedDocs_lst = new List<RevitLinkType>();
+
+            string tds = "load_all_Un_LnkdDocs";
+            try
+            {
+                foreach (ElementId eid in rvtLnksElId_lst)
+                {
+                    var elem = actvDoc.GetElement(eid);
+                    if (elem == null) continue;   // Element is not valid... i don't know what this means though... so do nothing and go to next elementid of a rvtLnksElId_lst
+
+                    // Get RVT document links only this time
+                    var link = elem as RevitLinkType;
+                    if (link == null) continue;  // This means that the element is not a RevitLinkType... possibly a RevitLinnkInstance ... so do nothing and go to next rvtLnksElId_lst
+
+                    try
+                    {
+                        // Load model temporarily to get the model  path of the cloud link
+                        var result = link.Load();
+                        loadedDocs_lst.Add(link);
+                    }
+                    catch (Exception ex) // never catch all exceptions!
+                    {
+                        TaskDialog.Show(tds, ex.Message);
+                    }
+                }  // foreach xrefs
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show(tds, ex.Message);
+            }
+            return loadedDocs_lst;
+        }  // End of load_all_Un_LnkdDocs()
+        #endregion   // End Of Load all Unloaded Documents2.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+
+
+
+        #region   // unload all  loaded documents by insertSleeve
+        public void unload_loadedDocs_lst(List<RevitLinkType> loadedDocs_lst)
+        {
+            foreach (RevitLinkType rvtlnktyp in loadedDocs_lst) { rvtlnktyp.Unload(null); }
+        }
+        #endregion  //End Of unload all  loaded documents by insertSleeve
+
+
+        #region  // Load all Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+        public List<flrsPerLnkdDoc_strct> load_allLnKdDocs2(Document actvDoc)
+        {
+            //ISet<ElementId> xrefs = ExternalResourceUtils.GetAllExternalResourceReferences(actvDoc);
+            FilteredElementCollector rvtLinks = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_RvtLinks);
+            IList<ElementId> rvtLnksElId_lst = rvtLinks.ToElementIds().ToList();
+            List<flrsPerLnkdDoc_strct> flrs_kvp_lst = new List<flrsPerLnkdDoc_strct>();
+
+            string tds = "load_allLnkdDocs2";
+            try
+            {
+                foreach (ElementId eid in rvtLnksElId_lst)
+                {
+                    var elem = actvDoc.GetElement(eid);
+                    if (elem == null) continue;   // Element is not valid... i don't know what this means though... so do nothing and go to next elementid of a rvtLnksElId_lst
+
+                    // Get RVT document links only this time
+                    var link = elem as RevitLinkType;
+                    if (link == null) continue;  // This means that the element is not a RevitLinkType... possibly a RevitLinnkInstance ... so do nothing and go to next rvtLnksElId_lst
+
+                    try
+                    {
+                        // Load model temporarily to get the model  path of the cloud link
+                        var result = link.Load();
+                        TaskDialog.Show("load_allLnKdDocs2", "Just Loaded: " + link.Name);
+                        Document lnkDoc = elem.Document;
+                        List<ElementId> archModelFloors_lst = new FilteredElementCollector(lnkDoc).WhereElementIsNotElementType().OfCategory(BuiltInCategory.OST_Floors).ToElementIds().ToList();
+                        TaskDialog.Show("load_AllLnkdDocs2", "lnkDoc.Title: " + lnkDoc.Title + "\n - lnkDoc.PathName: " + lnkDoc.PathName + "\n - archModelFloors.Count: " + archModelFloors_lst.Count);
+                        if (archModelFloors_lst.Count != 0 && archModelFloors_lst != null)
+                        {
+                            flrsPerLnkdDoc_strct flrsPerLnkdDoc = new flrsPerLnkdDoc_strct();
+                            flrsPerLnkdDoc.lnkDoc = lnkDoc;
+                            flrsPerLnkdDoc.flrsElId_lst = archModelFloors_lst;
+
+                            flrs_kvp_lst.Add(flrsPerLnkdDoc);
+                        }
+                        link.Unload(null);
+                        TaskDialog.Show("load_allLnKdDocs2", "Just UN-Loaded: " + link.Name);
+                    }
+                    catch (Exception ex) // never catch all exceptions!
+                    {
+                        TaskDialog.Show(tds, ex.Message);
+                    }
+                }  // foreach xrefs
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show(tds, ex.Message);
+            }
+            return flrs_kvp_lst;
+        }  // End of load_allLnKdDocs2()
+        #endregion   // End Of Load all Documents2.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+
+
+        #region  // Load all Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+        public void load_allLnKdDocs(Document actvDoc)
+        {
+            FilteredElementCollector rvtLinks = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_RvtLinks);
+
+            string tds = null;
+            tds = "\n rvtLinks Count: " + rvtLinks.ToList().Count.ToString();
+            TaskDialog.Show("load_allLnKdDocs", tds);
+
+
+            string linkTypes_str = "\n\n---- LINK TYPES ----";
+            string linkInstances_str = "\n\n---- LINK INSTANCES ----";
+
+            foreach (Element rvtLnk in rvtLinks)
+            {
+
+                RevitLinkType rvtLnk_Typ = rvtLnk as RevitLinkType;
+                if (rvtLnk_Typ == null) { TaskDialog.Show("load_allLnKdDocs", "rvtLnk_Typ.Name: is NULL "); }
+                else { TaskDialog.Show("load_allLnKdDocs", "rvtLnk_Typ.Name: " + rvtLnk_Typ.Name); }
+                RevitLinkInstance rvtLnk_inst = rvtLnk as RevitLinkInstance;
+
+                if (rvtLnk is RevitLinkInstance)
+                {
+
+                    RevitLinkType rvtLnkType = rvtLnk as RevitLinkType;
+
+                    // Check if loaded.
+
+                    Document loadedlnkDoc_inst = rvtLnk_inst.GetLinkDocument();
+
+
+                    if (loadedlnkDoc_inst == null)
+                    {
+                        linkInstances_str += "\n rvtLnk_inst.Name: " + rvtLnk_inst.Name + "  rvtLnk_inst.Id: " + rvtLnk_inst.Id.IntegerValue + " is NOT Loaded !";
+                        //load it
+                        using (Transaction loadLnkdDoc_trx = new Transaction(actvDoc, "Copy Elements from Linked Doc and Past in Host DOc"))
+                        {
+                            loadLnkdDoc_trx.Start();
+                            try
+                            {
+                                //          rvtLnk_Typ.Load();
+                                //actvDoc.RevitLinkInstance;
+                                loadLnkdDoc_trx.Commit();
+                            }
+                            catch (Exception ex) { TaskDialog.Show("load_allLnKdDocs", "Failed to load. Exception: " + ex.ToString()); }
+                        }
+                    }
+                    else if (loadedlnkDoc_inst != null)
+                    { linkInstances_str += "\n rvtLnk_inst.Name: " + rvtLnk_inst.Name + "  rvtLnk_inst.Id: " + rvtLnk_inst.Id.IntegerValue + " is Loaded !"; }
+                    else { linkInstances_str += "\n rvtLnk_inst Status: " + " is UNKNOWN !"; }
+                }
+                else
+                {
+                    linkTypes_str += "\n rvtLnk.Name: " + rvtLnk.Name + "  rvtLnk.Id: " + rvtLnk.Id.IntegerValue;
+                }
+            }
+            TaskDialog.Show("load_allLnKdDocs", linkTypes_str + linkInstances_str);
+        }  // End of load_allLnKdDocs()
+        #endregion   // End Of Load all Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+
+
+
+        #region //  getFlrs_AllLnkdDocs_lst2()
+        public List<flrsPerLnkdDoc_strct> getFlrs_AllLnkdDocs_lst2(Autodesk.Revit.ApplicationServices.Application app, BuiltInCategory BIC_str)
+        {
+            List<flrsPerLnkdDoc_strct> flrs_kvp_lst = new List<flrsPerLnkdDoc_strct>();
+            List<ElementId> flrs_inAllLnkdDocs_lst = new List<ElementId>();
+
+            foreach (Document lnkdDoc in app.Documents)
+            {
+                if (!lnkdDoc.IsLinked)
+                {
+
+                    // how do i load a linked document
+
+                    TaskDialog.Show("getFlrs_AllLnkdDocs_lst2", string.Format("\n - Not Linked document.Title '{0}': ", lnkdDoc.Title));
+                    //return retDoc;
+                }
+                else //(lnkdDoc.IsLinked)
+                {
+
+                    TaskDialog.Show("getFlrs_AllLnkdDocs_lst2", string.Format("\n - Linked document.Title:  '{0}': ", lnkdDoc.Title));
+                    FilteredElementCollector linkedFamCollector = new FilteredElementCollector(lnkdDoc);
+                    //ICollection<ElementId> archModelFloors_col = new FilteredElementCollector(lnkdDoc).WhereElementIsNotElementType().OfCategory(BIC_str).ToElementIds();
+                    List<ElementId> archModelFloors_lst = new FilteredElementCollector(lnkdDoc).WhereElementIsNotElementType().OfCategory(BuiltInCategory.OST_Floors).ToElementIds().ToList();
+                    if (archModelFloors_lst.Count != 0 && archModelFloors_lst != null)
+                    {
+                        flrsPerLnkdDoc_strct flrsPerLnkdDoc = new flrsPerLnkdDoc_strct();
+                        flrsPerLnkdDoc.lnkDoc = lnkdDoc;
+                        flrsPerLnkdDoc.flrsElId_lst = archModelFloors_lst;
+
+                        flrs_kvp_lst.Add(flrsPerLnkdDoc);
+                    }
+                }
+            }
+            return flrs_kvp_lst;
+        }//  End getFlrs_AllLnkdDocs_lst2()
+        #endregion  // End getFlrs_AllLnkdDocs_lst2()
+
+        #region //  getFlrs_AllLnkdDocs_lst()
+        public List<ElementId> getFlrs_AllLnkdDocs_lst(Autodesk.Revit.ApplicationServices.Application app, Document actvDoc, BuiltInCategory BIC_str)
+        {
+            List<ElementId> flrs_inAllLnkdDocs_lst = new List<ElementId>();
+
+            foreach (Document lnkdDoc in app.Documents)
+            {
+                if (!lnkdDoc.IsLinked)
+                {
+
+                    // how do i load a linked document
+                    string path = "z:/BIM/";
+                    FileInfo filePath = new FileInfo(path);
+                    ModelPath linkpath = ModelPathUtils.ConvertUserVisiblePathToModelPath(filePath.FullName.ToString());
+                    RevitLinkOptions options = new RevitLinkOptions(false);
+                    LinkLoadResult result = RevitLinkType.Create(actvDoc, linkpath, options);
+                    RevitLinkInstance.Create(actvDoc, result.ElementId);
+
+
+                    TaskDialog.Show("getLnkdDoc", string.Format("\n - Not Linked document \n '{0}': ", lnkdDoc.Title));
+                    //return retDoc;
+                }
+                else //(lnkdDoc.IsLinked)
+                {
+
+
+                    TaskDialog.Show("getLnkdDoc", string.Format("\n - Linked document \n '{0}': ", lnkdDoc.Title));
+                    FilteredElementCollector linkedFamCollector = new FilteredElementCollector(lnkdDoc);
+                    //ICollection<ElementId> archModelFloors_col = new FilteredElementCollector(lnkdDoc).WhereElementIsNotElementType().OfCategory(BIC_str).ToElementIds();
+                    ICollection<ElementId> archModelFloors_lst = new FilteredElementCollector(lnkdDoc).WhereElementIsNotElementType().OfCategory(BIC_str).ToElementIds().ToList();
+                    flrs_inAllLnkdDocs_lst.AddRange(archModelFloors_lst);
+                }
+            }
+            return flrs_inAllLnkdDocs_lst;
+        }//  End getFlrs_AllLnkdDocs_lst()
+        #endregion  // End getFlrs_AllLnkdDocs_lst()
+
+
+
+
+        #region //  getRvtLnkdDoc()
+        public Document getLnkdDoc(Autodesk.Revit.ApplicationServices.Application app, Document hostDoc, string matchStr)
+        {
+            Document retDoc = null;
+            foreach (Document lnkdDoc in app.Documents)
+            {
+                if (!lnkdDoc.IsLinked)
+                {
+                    TaskDialog.Show("getLnkdDoc", string.Format("\n - Not Linked document \n '{0}': ", lnkdDoc.Title));
+                    //return retDoc;
+                }
+                else //(lnkdDoc.IsLinked)
+                {
+                    TaskDialog.Show("getLnkdDoc", string.Format("\n - Linked document \n '{0}': ", lnkdDoc.Title));
+                    retDoc = lnkdDoc;
+                }
+            }
+            return retDoc;
+        }//  End getRvtLnkdDoc()
+        #endregion  // End getRvtLnkdDoc()
+
+        #region //  getArchModelFloors_Col()
+        public ICollection<ElementId> getArchModelFloors_Col(Autodesk.Revit.ApplicationServices.Application app, Document lnkdDoc, BuiltInCategory BIC_str)
+        {
+            FilteredElementCollector linkedFamCollector = new FilteredElementCollector(lnkdDoc);
+            ICollection<ElementId> archModelFloors_col = new FilteredElementCollector(lnkdDoc).WhereElementIsNotElementType().OfCategory(BIC_str).ToElementIds();
+
+            return archModelFloors_col;
+        }//  End getArchModelFloors_Col
+        #endregion  // End getArchModelFloors_Col
+
+        #region   //  copyPasteIds
+
+        public static void copyPasteIds(Document hostDoc, Document lnkdDoc, IList<ElementId> lnkdFlrs_col)
+        {
+            TaskDialog.Show("copyPasteIds", "The link contains the specified elements. \n\n\n Count : " + lnkdFlrs_col.Count);
+            using (Transaction copyPasteLnkdElm_trx = new Transaction(hostDoc, "Copy Elements from Linked Doc and Paste in Host Doc"))
+            {
+                copyPasteLnkdElm_trx.Start();
+                try
+                {
+                    // // Set failure handler  .. this is to handle me writing the same value in the Mark parameter which i gues, is not expected.
+                    var failureOptions = copyPasteLnkdElm_trx.GetFailureHandlingOptions();
+                    failureOptions.SetFailuresPreprocessor(new DuplicateMarkSwallower());
+                    copyPasteLnkdElm_trx.SetFailureHandlingOptions(failureOptions);
+
+                    CopyPasteOptions copyOptions = new CopyPasteOptions();
+                     copyOptions.SetDuplicateTypeNamesHandler(new CopyUseDestination());
+                    ElementTransformUtils.CopyElements(lnkdDoc, lnkdFlrs_col, hostDoc, null, copyOptions);
+                }
+                catch (Exception ex)
+                {
+                    TaskDialog.Show("copyPasteIds", "Exception Copy Paste : " + ex.ToString());
+                }
+                hostDoc.Regenerate(); 
+                copyPasteLnkdElm_trx.Commit();
+            }
+        }  // End Of copyPasteIds
+        #endregion  // End Of copyPasteIds
+
+
+
+        #region   //  copyPasteIdsFromList
+        public static void copyPasteIdsFromList(Document hostDoc, List<flrsPerLnkdDoc_strct> flrs_kvp_lst)
+        {
+            Document lnkdDoc = null;
+            List<ElementId> lnkdFlrs_col = new List<ElementId>();
+
+            string tds = "The link contains the specified elements. \n\n\n Count : " + flrs_kvp_lst.Count;
+
+            using (Transaction copyPasteLnkdElm_trx = new Transaction(hostDoc, "Copy Elements from Linked Doc and Past in Host Doc"))
+            {
+                foreach (flrsPerLnkdDoc_strct flrs_kvp in flrs_kvp_lst)
+                {
+                    lnkdDoc = flrs_kvp.lnkDoc;
+                    lnkdFlrs_col = flrs_kvp.flrsElId_lst;
+                    tds += "\n - Linked Doc: " + lnkdDoc.Title + ": Floor Count: " + lnkdFlrs_col.Count;
+                    foreach (ElementId eid in lnkdFlrs_col) { tds += "\n    - Element ID:" + eid; }
+                    copyPasteLnkdElm_trx.Start();
+                    try
+                    {
+
+                        // // Set failure handler  .. this is to handle me writing the same value in the Mark parameter which i gues, is not expected.
+                        var failureOptions = copyPasteLnkdElm_trx.GetFailureHandlingOptions();
+                        failureOptions.SetFailuresPreprocessor(new DuplicateMarkSwallower());
+                        copyPasteLnkdElm_trx.SetFailureHandlingOptions(failureOptions);
+
+                        CopyPasteOptions copyOptions = new CopyPasteOptions();
+                        copyOptions.SetDuplicateTypeNamesHandler(new CopyUseDestination());
+                        ElementTransformUtils.CopyElements(lnkdDoc, lnkdFlrs_col, hostDoc, null, copyOptions);
+                        hostDoc.Regenerate();
+                    }
+                    catch (Exception ex)
+                    {
+                        TaskDialog.Show("copyPasteIdsFromList", "Exception Copy Paste : " + ex.ToString());
+                    }
+
+                    copyPasteLnkdElm_trx.Commit();
+                }  // end of for each flrs_kvp_lst
+            }  // End of using
+            TaskDialog.Show("copyPasteIdsFromList", tds);
+        }  // End Of copyPasteIdsFromList
+        #endregion  // End Of copyPasteIdsFromList
+
+        #region  // CopyUseDestination
+        public class CopyUseDestination : IDuplicateTypeNamesHandler
+        {
+            public DuplicateTypeAction OnDuplicateTypeNamesFound(DuplicateTypeNamesHandlerArgs args)
+            {
+                return DuplicateTypeAction.Abort; // UseDestinationTypes;
+            }
+        }  // End Of CopyUseDestination
+        #endregion  // End Of CopyUseDestination
+
+        #region  //insert floors on levels
+        public List<Floor> insertLevelFloors(UIApplication app, Document actvDoc)
+        {
+            List<Floor> levelFloors_lst = new List<Floor>();
+            FilteredElementCollector levelCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Level));
+            List<Level> levels = levelCollector.Cast<Level>().ToList();
+            //TaskDialog.Show("insertSleeves", "levels.Count: " + levels.Count);
+
+
+            // Insertion of floor at each level //
+
+            foreach (Level lvl in levels)
+            {
+                Floor floor = InsertFloor(app, lvl);
+                //TaskDialog.Show("insertLevelFloors", "after insertFloor" + floor.Name);
+                levelFloors_lst.Add(floor);
+                //TaskDialog.Show("insertLevelFloors", "after Add(floor)");
+            }
+
+            return levelFloors_lst;
+        }  // End Of insertLevelFloors
+        #endregion  // End of insertLevelFloors
+
+        #region  // Function to suppress the "Duplicate Mark Value" Warnings.
+        public class DuplicateMarkSwallower : IFailuresPreprocessor
+        {
+            public FailureProcessingResult PreprocessFailures(FailuresAccessor a)
+            {
+                var failures = a.GetFailureMessages();
+                foreach (var f in failures)
+                {
+                    var id = f.GetFailureDefinitionId();
+                    if (BuiltInFailures.GeneralFailures.DuplicateValue == id)
+                    {
+                        a.DeleteWarning(f);
+                    }
+                }
+                return FailureProcessingResult.Continue;
+            }
+        }   // End of DuplicateMarkSwallower
+
+        #endregion    // Function to suppress the "Duplicate Mark Value" Warnings.
+
+        #region  // OPens fileDialog Box for File selection
+        public void openFileDialogBox(Document actvDoc)
+        {
+            // Get application and document objects
+
+            //UIDocument uidoc = ActiveUIDocument;
+            //Autodesk.Revit.ApplicationServices.Application app = ThisApplication.Application;
+            //Autodesk.Revit.DB.Document doc = uidoc.Document;
+
+            try
+            {
+                using (Transaction transaction = new Transaction(actvDoc))
+                {
+                    // Link files in folder
+                    transaction.Start("Link files");
+
+                    OpenFileDialog openFileDialog1 = new OpenFileDialog();
+                    openFileDialog1.InitialDirectory = (@"P:\");
+                    openFileDialog1.Filter = "RVT|*.rvt";
+                    openFileDialog1.Multiselect = true;
+                    openFileDialog1.RestoreDirectory = true;
+
+                    if (openFileDialog1.ShowDialog() == DialogResult.OK)
+                    {
+                        // string[] filesInFolder = openFileDialog1.FileNames;
+                        foreach (string path in openFileDialog1.FileNames)
+                        {
+                            FileInfo filePath = new FileInfo(path);
+
+                            // debug ***********
+                            TaskDialog.Show("insertSleeves", "filePath.FullName.ToString() = " + filePath.FullName.ToString());
+                            // debug ***********
+
+                            ModelPath linkpath = ModelPathUtils.ConvertUserVisiblePathToModelPath(filePath.FullName.ToString());
+                            RevitLinkOptions options = new RevitLinkOptions(false);
+                            LinkLoadResult result = RevitLinkType.Create(actvDoc, linkpath, options);
+                            RevitLinkInstance.Create(actvDoc, result.ElementId);
+                        }
+                    }
+                    // Show summary message
+                    //TaskDialog.Show("Files", filePaths.ToString());
+                    // Assuming that everything went right return Result.Succeeded
+                    transaction.Commit();
+                    //return Result.Succeeded;
+                }
+            }
+            catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+            {
+                // If user decided to cancel the operation return Result.Canceled
+                TaskDialog.Show("test", "User Canceled ");
+            }
+            catch (Exception ex)
+            {
+                // If something went wrong return Result.Failed
+                Console.WriteLine("There was a problem!");
+                Console.WriteLine(ex.Message);
+                //return Result.Failed;
+            }
+        }  // End openFileDialog
+
+        #endregion  // End OPens fileDialog Box for File selection
+
+
+
+
+        public struct flrsPerLnkdDoc_strct
+        {
+            public Document lnkDoc;
+            public List<ElementId> flrsElId_lst;
+
+            public flrsPerLnkdDoc_strct(Document lnkDoc, List<ElementId> flrsElId_lst)
+            {
+                this.lnkDoc = lnkDoc;
+                this.flrsElId_lst = flrsElId_lst;
+
+            }
+
+        }
+
+    }  // End Of Class InsertSleeve 
+}   // End of Namespace KDS_Module
+
