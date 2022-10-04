@@ -18,18 +18,24 @@ namespace KDS_Module
     public class create_update_Fam_KDS_CSV : IExternalCommand
     {
         const string csvFilePath = "Z:\\BIM\\Families\\SupplierCode\\CI_NH_fittings_Charlotte_KDS.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
-#if (RVT2022) 
-        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2022\\KDS_SHARED_PARAMS.txt";            // Shared Parmeters.. this is how we get into the family parameters.  i am still not sure if this is best to use.
+#if (RVT2022)
+        const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2022\\";
+        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";            // Shared Parmeters.. this is how we get into the family parameters.  i am still not sure if this is best to use.
 #elif (RVT2021)
-        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2021\\KDS_SHARED_PARAMS.txt";
+        const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2021\\";
+        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";
 #elif (RVT2020)
-        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2020\\KDS_SHARED_PARAMS.txt";
+        const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2020\\";
+        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";
 #elif (RVT2019)
-        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2019\\KDS_SHARED_PARAMS.txt";
+        const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2019\\";
+        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";
 #elif (RVT2018)
-        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2018\\KDS_SHARED_PARAMS.txt";
+        const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2018\\";
+        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";
 #else
-        const string sharedParameter_fn = "Z:\\BIM\\KDS_TEMPLATE\\2022\\KDS_SHARED_PARAMS.txt";
+        const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2022\\";
+        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";
 
 #endif
 
@@ -161,7 +167,7 @@ namespace KDS_Module
                     folderName = input.Substring(0, j);
                 }
 
-                string file = "Z:\\BIM\\KDS_TEMPLATE\\2020\\fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".csv";
+                string file = sharedParameter_dir +"fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".csv";
 
                 sb1 += file + "\n";
 
@@ -228,7 +234,7 @@ namespace KDS_Module
                 folderName = input.Substring(0, j);
             }
 
-            string file = "Z:\\BIM\\KDS_TEMPLATE\\2020\\fittings\\" + folderName + "\\" + family.Name + "\\" + family.Name + ".rfa";
+            string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + family.Name + "\\" + family.Name + ".rfa";
 
 
             bool found = false;
@@ -302,7 +308,7 @@ namespace KDS_Module
             IList<FamilySymbol> fs_lst;
             // IList<Family> f_lst;
 
-            filePath = "Z:\\BIM\\KDS_TEMPLATE\\2020\\fittings\\"; //subdirectory for fittings only
+            filePath = sharedParameter_dir + "fittings\\"; //subdirectory for fittings only
 
             fs_lst = Get_PipeFitting_FamilySymbols(actvDoc);
             //TaskDialog.Show("test", "f_lst.count: " + f_lst.Count());

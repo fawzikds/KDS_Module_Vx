@@ -24,7 +24,7 @@
     <DebugType>Full</DebugType>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <OutputPath>C:\BIM\KDS_ADDIN\Addin\</OutputPath>
-    <AssemblyName>KDS_Module</AssemblyName>
+    <AssemblyName>KDS_Module_Vx</AssemblyName>
     <BaseInterMediateOutputPath>obj\</BaseInterMediateOutputPath>
     <InterMediateOutputPath>obj\Debug</InterMediateOutputPath>
   </PropertyGroup>
@@ -42,7 +42,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'RVT2022|AnyCPU'">
-    <OutputPath>..\..\..\..\..\..\..\BIM\KDS_ADDIN\Addin\RVT2022\</OutputPath>
+    <OutputPath>..\..\..\..\..\..\..\BIM\KDS_ADDIN\Addin\</OutputPath>
     <DefineConstants>TRACE;DEBUG;RVT2022</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'RVT2021|AnyCPU'">

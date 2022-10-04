@@ -1,0 +1,7 @@
+C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.csproj.AssemblyReference.cache
+C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.csproj.CoreCompileInputs.cache
+C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.csproj.CopyComplete
+C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.dll
+C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.pdb
+C:\BIM\KDS_ADDIN\Addin\KDS_Module_Vx.dll
+C:\BIM\KDS_ADDIN\Addin\KDS_Module_Vx.pdb

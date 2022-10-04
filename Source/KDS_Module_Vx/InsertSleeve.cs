@@ -2,6 +2,7 @@
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,7 +12,7 @@ using System.Windows.Forms;
 
 
 
-namespace KDS_Module
+namespace KDS_Module_Vx
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public class InsertSleeve : IExternalCommand
@@ -212,9 +213,11 @@ namespace KDS_Module
                     Curve pipeCurve = FindPipeCurve(p);
 
                     XYZ intersection = null;
+                    XYZ xyz_tol = new XYZ(0.01, 0.01, 1);
 
                     List<Face> floorFaces = FindFloorFace(f);
                     Face frstFlrFace = floorFaces.FirstOrDefault();
+
 
                     //for (int i = 0; i < 1; i++)
                     if (frstFlrFace != null)
@@ -225,9 +228,11 @@ namespace KDS_Module
                         {
                             //TaskDialog.Show("insertSleeves", "  In insertSleeves Function " + "\nintersection is NULL !");
                         }
-                        else if (sleevesLocPnt_lst.Contains(intersection))
+
+                        //else if (sleevesLocPnt_lst.Contains(intersection))
+                        else if (isWithinRange(sleevesLocPnt_lst, intersection, xyz_tol))
                         {
-                            TaskDialog.Show("insertSleeves", "  In insertSleeves Function " + "\n intersection is Found in List, So no need to insert Element again. !");
+                            //TaskDialog.Show("insertSleeves", "  In insertSleeves Function " + "\n intersection is Found in List, So no need to insert Element again. !");
                         }
                         else //(null != intersection)
                         {
@@ -995,14 +1000,36 @@ namespace KDS_Module
                 return FailureProcessingResult.ProceedWithCommit;
             }
         }
-#endregion //End of  Some Swallower.. i would like to implement for pasting floors
+        #endregion //End of  Some Swallower.. i would like to implement for pasting floors
+
+
+        #region // Find if XYZ is in a List of XYZ with a tolerance using IEnumerale 
+        // Check if and xyz point is in a list of points.
+        // The xyz_rng cannot have 0 in it otherwise autodesk will return false results, since it is comparing decimal numbers, e.g. 0.33333333
+
+        public bool isWithinRange(List<XYZ> xyz_lst, XYZ xyz_pt, XYZ xyz_rng)
+        {
+            //TaskDialog.Show("isWithinRange", "in The isWithinRange: ");
+            IEnumerable<XYZ> xyz_ien = xyz_lst as IEnumerable<XYZ>;
+
+            List<XYZ> SleevesIntersects_lst = xyz_ien.Where(loc =>
+            (loc.X > xyz_pt.X - xyz_rng.X && loc.X < xyz_pt.X + xyz_rng.X) &&
+            (loc.Y > xyz_pt.Y - xyz_rng.Y && loc.Y < xyz_pt.Y + xyz_rng.Y) && 
+            (loc.Z > xyz_pt.Z - xyz_rng.Z && loc.Z < xyz_pt.Z + xyz_rng.Z)).ToList<XYZ>();
+
+            if (SleevesIntersects_lst.Count > 0) { return true; }
+
+            else return false;
+        }
 
 
 
 
+        #endregion
 
 
-#region  // OPens fileDialog Box for File selection
+
+        #region  // OPens fileDialog Box for File selection
         public void openFileDialogBox(Document actvDoc)
         {
             // Get application and document objects
