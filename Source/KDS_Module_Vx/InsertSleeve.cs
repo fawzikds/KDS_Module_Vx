@@ -2,7 +2,6 @@
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
-using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -68,11 +67,17 @@ namespace KDS_Module_Vx
             {
 
 
-                DialogResult dialogResult = MessageBox.Show("Check Linked Documents?", "Insert Sleeves", MessageBoxButtons.YesNo);
-                if (dialogResult == DialogResult.Yes)
+                DialogResult dialogResult = MessageBox.Show("Load Linked Documents: \n\n Yes: Loads All Linked Documnets. \n No: Give you an option to Select what to load. \n Cancel: Does Not Load Any Documents.", "Load Linked Documents", MessageBoxButtons.YesNoCancel);
+                if (dialogResult == DialogResult.Yes|| dialogResult == DialogResult.No)
                 {
-                    List<RevitLinkType> loadedDocsLinkTypes_lst = new List<RevitLinkType>();
-                    loadedDocsLinkTypes_lst = load_all_Un_LnkdDocs(actvDoc);
+                    List<RevitLinkType> loadedDocsLinkTypes_lst = new List<RevitLinkType>(); 
+                    
+                    if (dialogResult == DialogResult.Yes)
+                    {
+                        
+                        loadedDocsLinkTypes_lst = load_all_Un_LnkdDocs(actvDoc);
+                    }
+                    else { loadedDocsLinkTypes_lst = load_Selected_Un_LnkdDocs(actvDoc); }
 
                     #region   // Loop to dispaly All loaded Linked Document.
                     string ldlnkd_str = "";
@@ -131,6 +136,7 @@ namespace KDS_Module_Vx
 
 
                 }
+
                 else if (dialogResult == DialogResult.No)
                 {
 
@@ -334,13 +340,6 @@ namespace KDS_Module_Vx
         }
         #endregion  // End of Reset the shape of the floors.
 
-        public void GetInfo_FloorType(FloorType floorType)
-        {
-            string message;
-            // Get whether FloorType is a foundation slab
-            message = "If is foundation slab : " + floorType.IsFoundationSlab;
-            TaskDialog.Show("Revit", message);
-        }
 
 
         #region // Reset the shape of the floors as Floor 
@@ -476,12 +475,12 @@ namespace KDS_Module_Vx
                 createFloor.Commit();
                 return floor;
             }
-#endregion
+            #endregion
         }
-#endregion
+        #endregion
 
 
-#region // DeleteFloor Function to delete floor //
+        #region // DeleteFloor Function to delete floor //
 
         public void DeleteFloors(Document actvDoc)
         {
@@ -511,9 +510,9 @@ namespace KDS_Module_Vx
                 }
             }
         }
-#endregion
+        #endregion
 
-#region Delete Dimensions Element ID  List
+        #region Delete Dimensions Element ID  List
         public void DeleteDims_lst(Document actvDoc, List<ElementId> Dims_el_lst)
         {
             foreach (ElementId Dims_el in Dims_el_lst)
@@ -526,11 +525,11 @@ namespace KDS_Module_Vx
                 }
             }
         }
-#endregion
+        #endregion
 
 
 
-#region // FindPipeCurve Function to get curve of pipe //
+        #region // FindPipeCurve Function to get curve of pipe //
         public Curve FindPipeCurve(Pipe p)
         {
             LocationCurve lc = p.Location as LocationCurve;
@@ -541,9 +540,9 @@ namespace KDS_Module_Vx
 
             return curve;
         }
-#endregion
+        #endregion
 
-#region // FindFloorFace Function to find faces of floor //
+        #region // FindFloorFace Function to find faces of floor //
         public List<Face> FindFloorFace(Floor f)
         {
             List<Face> normalFaces = new List<Face>();
@@ -579,9 +578,9 @@ namespace KDS_Module_Vx
 
             return normalFaces;
         }
-#endregion
+        #endregion
 
-#region // FindFaceCurve Function to find intersection of pipe Curve an Floor Face //
+        #region // FindFaceCurve Function to find intersection of pipe Curve an Floor Face //
         public XYZ FindFaceCurve(Curve pipeCurve, Face floorFace)
         {
             //The intersection point
@@ -605,9 +604,9 @@ namespace KDS_Module_Vx
             }
             return intersectionResult;
         }
-#endregion
+        #endregion
 
-#region // IsVertical Function to declare given pipe as vertical or not //
+        #region // IsVertical Function to declare given pipe as vertical or not //
         public bool IsVertical(Pipe p)
         {
             double tolerance = 0.01;
@@ -635,10 +634,10 @@ namespace KDS_Module_Vx
                 return false;
             }
         }
-#endregion
+        #endregion
 
 
-#region  // Load all Unloaded Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+        #region  // Load all Unloaded Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
         public List<RevitLinkType> load_all_Un_LnkdDocs(Document actvDoc)
         {
             //ISet<ElementId> xrefs = ExternalResourceUtils.GetAllExternalResourceReferences(actvDoc);
@@ -657,7 +656,6 @@ namespace KDS_Module_Vx
                     // Get RVT document links only this time
                     var link = elem as RevitLinkType;
                     if (link == null) continue;  // This means that the element is not a RevitLinkType... possibly a RevitLinnkInstance ... so do nothing and go to next rvtLnksElId_lst
-
                     try
                     {
                         // Load model temporarily to get the model  path of the cloud link
@@ -676,18 +674,65 @@ namespace KDS_Module_Vx
             }
             return loadedDocs_lst;
         }  // End of load_all_Un_LnkdDocs()
-#endregion   // End Of Load all Unloaded Documents2.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+        #endregion   // End Of Load all Unloaded Documents2.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
 
 
-#region   // unload all  loaded documents by insertSleeve
+        #region  // Load all Unloaded Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+        public List<RevitLinkType> load_Selected_Un_LnkdDocs(Document actvDoc)
+        {
+            //ISet<ElementId> xrefs = ExternalResourceUtils.GetAllExternalResourceReferences(actvDoc);
+            FilteredElementCollector rvtLinks = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_RvtLinks);
+            IList<ElementId> rvtLnksElId_lst = rvtLinks.ToElementIds().ToList();
+            List<RevitLinkType> loadedDocs_lst = new List<RevitLinkType>();
+
+            string tds = "load_all_Un_LnkdDocs";
+            try
+            {
+                foreach (ElementId eid in rvtLnksElId_lst)
+                {
+                    var elem = actvDoc.GetElement(eid);
+                    if (elem == null) continue;   // Element is not valid... i don't know what this means though... so do nothing and go to next elementid of a rvtLnksElId_lst
+
+                    // Get RVT document links only this time
+                    var link = elem as RevitLinkType;
+                    if (link == null) continue;  // This means that the element is not a RevitLinkType... possibly a RevitLinnkInstance ... so do nothing and go to next rvtLnksElId_lst
+                    DialogResult dialogResult = MessageBox.Show("Do you want to load this Document: " +link.Name , "Loading Linked Documents", MessageBoxButtons.YesNo);
+                    if (dialogResult == DialogResult.Yes)
+                    {
+                        try
+                        {
+                            // Load model temporarily to get the model  path of the cloud link
+                            var result = link.Load();
+                            loadedDocs_lst.Add(link);
+                        }
+                        catch (Exception ex) // never catch all exceptions!
+                        {
+                            TaskDialog.Show(tds, ex.Message);
+                        }
+                    }  //if Load Dialog
+                }  // foreach xrefs
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show(tds, ex.Message);
+            }
+            return loadedDocs_lst;
+        }  // End of load_all_Un_LnkdDocs()
+        #endregion   // End Of Load all Unloaded Documents2.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
+
+
+
+
+
+        #region   // unload all  loaded documents by insertSleeve
         public void unload_loadedDocs_lst(List<RevitLinkType> loadedDocs_lst)
         {
             foreach (RevitLinkType rvtlnktyp in loadedDocs_lst) { rvtlnktyp.Unload(null); }
         }
-#endregion  //End Of unload all  loaded documents by insertSleeve
+        #endregion  //End Of unload all  loaded documents by insertSleeve
 
 
-#region //  getFlrs_AllLnkdDocs_lst()
+        #region //  getFlrs_AllLnkdDocs_lst()
         public List<flrsPerLnkdDoc_strct> getFlrs_AllLnkdDocs_lst(Autodesk.Revit.ApplicationServices.Application app, BuiltInCategory BIC_str)
         {
             List<flrsPerLnkdDoc_strct> flrs_kvp_lst = new List<flrsPerLnkdDoc_strct>();
@@ -733,10 +778,10 @@ namespace KDS_Module_Vx
 
             return flrs_kvp_lst;
         }//  End getFlrs_AllLnkdDocs_lst()
-#endregion  // End getFlrs_AllLnkdDocs_lst()
+        #endregion  // End getFlrs_AllLnkdDocs_lst()
 
 
-#region //  getRvtLnkdDoc()
+        #region //  getRvtLnkdDoc()
         public Document getLnkdDoc(Autodesk.Revit.ApplicationServices.Application app, Document hostDoc, string matchStr)
         {
             Document retDoc = null;
@@ -755,10 +800,10 @@ namespace KDS_Module_Vx
             }
             return retDoc;
         }//  End getRvtLnkdDoc()
-#endregion  // End getRvtLnkdDoc()
+        #endregion  // End getRvtLnkdDoc()
 
 
-#region //  getArchModelFloors_Col()
+        #region //  getArchModelFloors_Col()
         public ICollection<ElementId> getArchModelFloors_Col(Autodesk.Revit.ApplicationServices.Application app, Document lnkdDoc, BuiltInCategory BIC_str)
         {
             FilteredElementCollector linkedFamCollector = new FilteredElementCollector(lnkdDoc);
@@ -766,10 +811,10 @@ namespace KDS_Module_Vx
 
             return archModelFloors_col;
         }//  End getArchModelFloors_Col
-#endregion  // End getArchModelFloors_Col
+        #endregion  // End getArchModelFloors_Col
 
 
-#region   //  copyPasteIds
+        #region   //  copyPasteIds
         public static void copyPasteIds(Document hostDoc, Document lnkdDoc, IList<ElementId> lnkdFlrs_col)
         {
             //TaskDialog.Show("copyPasteIds", "There Count of Floors in this Doc is: " + lnkdFlrs_col.Count);
@@ -799,7 +844,7 @@ namespace KDS_Module_Vx
                 copyPasteLnkdElm_trx.Commit();
             }
         }  // End Of copyPasteIds
-#endregion  // End Of copyPasteIds
+        #endregion  // End Of copyPasteIds
 
         /*  #region   //  copyPasteIdsFromList
 
@@ -845,7 +890,7 @@ namespace KDS_Module_Vx
           }  // End Of copyPasteIdsFromList
 #endregion  // End Of copyPasteIdsFromList
         */
-#region  // CopyUseDestination
+        #region  // CopyUseDestination
         public class CopyUseDestination : IDuplicateTypeNamesHandler
         {
             public DuplicateTypeAction OnDuplicateTypeNamesFound(DuplicateTypeNamesHandlerArgs args)
@@ -854,9 +899,9 @@ namespace KDS_Module_Vx
                 //return DuplicateTypeAction.Abort; // UseDestinationTypes;
             }
         }  // End Of CopyUseDestination
-#endregion  // End Of CopyUseDestination
+        #endregion  // End Of CopyUseDestination
 
-#region  //insert floors on levels
+        #region  //insert floors on levels
         public List<Floor> insertLevelFloors(UIApplication app, Document actvDoc)
         {
             List<Floor> levelFloors_lst = new List<Floor>();
@@ -876,7 +921,7 @@ namespace KDS_Module_Vx
 
             return levelFloors_lst;
         }  // End Of insertLevelFloors
-#endregion  // End of insertLevelFloors
+        #endregion  // End of insertLevelFloors
 
         /*#region  // Function to suppress the "Duplicate Mark Value" Warnings.
         public class ReferencesNotParallelSwallower : IFailuresPreprocessor
@@ -898,7 +943,7 @@ namespace KDS_Module_Vx
 #endregion    // Function to suppress the "Duplicate Mark Value" Warnings.
 */
 
-#region // Some Swallower.. i would like to implement for pasting floors
+        #region // Some Swallower.. i would like to implement for pasting floors
         public class FailurePreproccessor : IFailuresPreprocessor
         {
             FailureProcessingResult IFailuresPreprocessor.PreprocessFailures(FailuresAccessor failAccessor)
@@ -1014,7 +1059,7 @@ namespace KDS_Module_Vx
 
             List<XYZ> SleevesIntersects_lst = xyz_ien.Where(loc =>
             (loc.X > xyz_pt.X - xyz_rng.X && loc.X < xyz_pt.X + xyz_rng.X) &&
-            (loc.Y > xyz_pt.Y - xyz_rng.Y && loc.Y < xyz_pt.Y + xyz_rng.Y) && 
+            (loc.Y > xyz_pt.Y - xyz_rng.Y && loc.Y < xyz_pt.Y + xyz_rng.Y) &&
             (loc.Z > xyz_pt.Z - xyz_rng.Z && loc.Z < xyz_pt.Z + xyz_rng.Z)).ToList<XYZ>();
 
             if (SleevesIntersects_lst.Count > 0) { return true; }
@@ -1089,9 +1134,9 @@ namespace KDS_Module_Vx
             }
         }  // End openFileDialog
 
-#endregion  // End OPens fileDialog Box for File selection
+        #endregion  // End OPens fileDialog Box for File selection
 
-#region // flrsPerLnkdDoc_strct
+        #region // flrsPerLnkdDoc_strct
         public struct flrsPerLnkdDoc_strct
         {
             public Document lnkDoc;
@@ -1105,7 +1150,7 @@ namespace KDS_Module_Vx
             }
 
         } // End of flrsPerLnkdDoc_strct
-#endregion  // End of flrsPerLnkdDoc_strct
+        #endregion  // End of flrsPerLnkdDoc_strct
 
 
 
