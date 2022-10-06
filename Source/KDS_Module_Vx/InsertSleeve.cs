@@ -68,13 +68,13 @@ namespace KDS_Module_Vx
 
 
                 DialogResult dialogResult = MessageBox.Show("Load Linked Documents: \n\n Yes: Loads All Linked Documnets. \n No: Give you an option to Select what to load. \n Cancel: Does Not Load Any Documents.", "Load Linked Documents", MessageBoxButtons.YesNoCancel);
-                if (dialogResult == DialogResult.Yes|| dialogResult == DialogResult.No)
+                if (dialogResult == DialogResult.Yes || dialogResult == DialogResult.No)
                 {
-                    List<RevitLinkType> loadedDocsLinkTypes_lst = new List<RevitLinkType>(); 
-                    
+                    List<RevitLinkType> loadedDocsLinkTypes_lst = new List<RevitLinkType>();
+
                     if (dialogResult == DialogResult.Yes)
                     {
-                        
+
                         loadedDocsLinkTypes_lst = load_all_Un_LnkdDocs(actvDoc);
                     }
                     else { loadedDocsLinkTypes_lst = load_Selected_Un_LnkdDocs(actvDoc); }
@@ -98,17 +98,22 @@ namespace KDS_Module_Vx
                     int dc = 0;
 
                     int tf = 0;
+
                     foreach (flrsPerLnkdDoc_strct flrs_kvp in flrs_kvp_lst)
                     {
                         dc++;
-                        int fc = 0;
+                        int flr_cnt = 0;
                         tds += " \n " + dc + "- Floors in : " + flrs_kvp.lnkDoc.Title;
-                        foreach (ElementId feid in flrs_kvp.flrsElId_lst)
+                        foreach (ElementId flr_eid in flrs_kvp.flrsElId_lst)
                         {
-                            fc++;
+                            flr_cnt++;
                             tf++;
-                            Floor f = flrs_kvp.lnkDoc.GetElement(feid) as Floor;
-                            tds += "\n   " + fc + "- Floor Name: " + f.Name;
+                            Floor flr = flrs_kvp.lnkDoc.GetElement(flr_eid) as Floor;
+                            if (flr == null) { }
+                            else
+                            {
+                                tds += "\n   " + flr_cnt + "- Floor Name: " + flr.Name;
+                            }
                         }
                     }
                     tds = "--- List of All Floor Names per Linked Document ---" + "\n         Total Docs: " + dc + " Total Floors: " + tf + tds;
@@ -417,13 +422,13 @@ namespace KDS_Module_Vx
                 param.Set(5.0);
                 #endregion  // Get a floor type for floor creation 2020
 #elif RVT2021
- XYZ normal = XYZ.BasisZ;
+                XYZ normal = XYZ.BasisZ;
 
                 #region                // Get a floor type for floor creation 2021
                 FloorType floorType = new FilteredElementCollector(actvDoc).OfClass(typeof(FloorType)).First(e => e.Name.Equals("Generic - 12\"")) as FloorType;   //For Revit 2021 and older
-      
+
                 // The normal vector (0,0,1) that must be perpendicular to the profile.
-               
+
 
                 XYZ first = new XYZ(1000, 1000, 0);
                 XYZ second = new XYZ(1000, -1000, 0);
@@ -696,7 +701,7 @@ namespace KDS_Module_Vx
                     // Get RVT document links only this time
                     var link = elem as RevitLinkType;
                     if (link == null) continue;  // This means that the element is not a RevitLinkType... possibly a RevitLinnkInstance ... so do nothing and go to next rvtLnksElId_lst
-                    DialogResult dialogResult = MessageBox.Show("Do you want to load this Document: " +link.Name , "Loading Linked Documents", MessageBoxButtons.YesNo);
+                    DialogResult dialogResult = MessageBox.Show("Do you want to load this Document: " + link.Name, "Loading Linked Documents", MessageBoxButtons.YesNo);
                     if (dialogResult == DialogResult.Yes)
                     {
                         try

@@ -5,3 +5,7 @@ C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS
 C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.pdb
 C:\BIM\KDS_ADDIN\Addin\KDS_Module_Vx.dll
 C:\BIM\KDS_ADDIN\Addin\KDS_Module_Vx.pdb
+C:\BIM\KDS_ADDIN\Addin\RVT2022\KDS_Module_Vx.dll
+C:\BIM\KDS_ADDIN\Addin\RVT2022\KDS_Module_Vx.pdb
+C:\BIM\KDS_ADDIN\Addin\RVT2021\KDS_Module_Vx.dll
+C:\BIM\KDS_ADDIN\Addin\RVT2021\KDS_Module_Vx.pdb

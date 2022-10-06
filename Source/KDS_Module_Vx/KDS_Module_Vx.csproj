@@ -42,7 +42,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'RVT2022|AnyCPU'">
-    <OutputPath>..\..\..\..\..\..\..\BIM\KDS_ADDIN\Addin\</OutputPath>
+    <OutputPath>..\..\..\..\..\..\..\BIM\KDS_ADDIN\Addin\RVT2022\</OutputPath>
     <DefineConstants>TRACE;DEBUG;RVT2022</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'RVT2021|AnyCPU'">

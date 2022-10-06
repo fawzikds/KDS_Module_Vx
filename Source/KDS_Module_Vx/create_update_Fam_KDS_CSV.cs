@@ -9,7 +9,7 @@ namespace KDS_Module
 {
 
     #region // create_update_Fam_KDS_CSV
-    //    - It does separating large file in groups per family.
+    //    - Separates the large KDS_CSV file into groups per family.
     //    - Copy groups to csv with same family name in dir
     //    - Create Parameters in Family
     //    - Assign Value/Formula to created Parameters
@@ -17,6 +17,7 @@ namespace KDS_Module
 
     public class create_update_Fam_KDS_CSV : IExternalCommand
     {
+        #region  // Setup Revit Revision Dependent csvFilePath
         const string csvFilePath = "Z:\\BIM\\Families\\SupplierCode\\CI_NH_fittings_Charlotte_KDS.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
 #if (RVT2022)
         const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2022\\";
@@ -36,18 +37,20 @@ namespace KDS_Module
 #else
         const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2022\\";
         const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";
-
 #endif
+        #endregion  //End Of Setup Revit Revision Dependent csvFilePath
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-#region // Initializations, Filters, and Collections //
+            #region // Initializations, Filters, Collections //
 
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
 
-            List<Element> family_elements;
-            List<FamilySymbol> family_symbols = new List<FamilySymbol>();
-            List<string> family_names = new List<string>();
+            List<Element> famElem_lst;
+            List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
+            List<string> famNm_lst = new List<string>();
+            List<Family> famMain_lst = new List<Family>();
+            List<Family> famDstnct_lst = new List<Family>();
 
             List<BuiltInCategory> builtInCats = new List<BuiltInCategory>();
 
@@ -57,44 +60,105 @@ namespace KDS_Module
 
             ElementMulticategoryFilter filter1 = new ElementMulticategoryFilter(builtInCats);
 
-            family_elements = new FilteredElementCollector(uidoc.Document).WherePasses(filter1).WhereElementIsElementType().ToList();
+            famElem_lst = new FilteredElementCollector(uidoc.Document).WherePasses(filter1).WhereElementIsElementType().ToList();
 
-            foreach (Element el in family_elements)
+            foreach (Element el in famElem_lst)
             {
-                family_symbols.Add(el as FamilySymbol);
+                famSmbl_lst.Add(el as FamilySymbol);
             }
 
-            List<Family> family_mains = family_symbols.Select(fs => fs.Family).ToList();
-            List<Family> family_distinct = family_mains //how to find unique families based on family name, not family type, of given categories
+            TaskDialog.Show("Execute", "famSmbl_lst.Count: " + famSmbl_lst.Count());
+
+
+            famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
+            famDstnct_lst = famMain_lst //how to find unique families based on family name, not family type, of given categories
                 .GroupBy(f => f.Name)
                 .Select(g => g.First())
                 .ToList();
 
-            //TaskDialog.Show("test", "family_distinct.Count: " + family_distinct.Count());
+            TaskDialog.Show("Execute", "famDstnct_lst.Count: " + famDstnct_lst.Count());
+            #endregion // Initializations, Filters, Collections //
 
-#endregion
+            CreateAndFill_FamilyDirTree(uidoc, famDstnct_lst);
+            return Result.Succeeded;
 
-#region // Split up CSV file //
 
+            #region // Split up CSV file //
 
-            Csv_to_DB(uidoc, family_distinct);
+            Csv_to_DB(uidoc, famDstnct_lst);   // Convert CVS to a Structured Data
+            #endregion
 
-#endregion
-
-#region // Import csv in families //
-
-            foreach (Family fam in family_distinct)
+            #region // Import csv in families //
+            foreach (Family fam in famDstnct_lst)
             {
                 ImportSizeLookUpTable(uidoc, fam);
                 Create_sharedParameter_inFamily(uidoc, fam);
-
             }
-#endregion
+            #endregion
 
             return Result.Succeeded;
         }
 
 
+
+        #region   // Create and Fill Families in Dir tree
+
+        public void CreateAndFill_FamilyDirTree(UIDocument uiDoc, List<Family> famDstnct_lst)
+        {
+
+            Document actvDoc = uiDoc.Document;
+
+            foreach (Family fam in famDstnct_lst)
+            {
+                string folderName = null;
+                string input = fam.Name;
+                int j = input.IndexOf("-");
+
+                if (j >= 0)
+                {
+                    folderName = input.Substring(0, j);
+                }
+
+                string famTypeDir = sharedParameter_dir + "fittings\\";     // z:\BIM\KDS_TEMPLATE\2022\fittings
+                string famManfDir = famTypeDir + folderName + "\\";                // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH
+                string famDir = famManfDir + fam.Name + "\\";                      // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\
+                //string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".rfa";   // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\KDS_Char_CI_NH_Coupling.rfa
+                string file = famDir + fam.Name + ".rfa";
+               /* TaskDialog.Show("CreateAndFill_FamilyDirTree", "filename = " + fam.Name +
+                                           "\n famTypeDir = " + famTypeDir +
+                                           "\n famManfDir = " + famManfDir +
+                                           "\n famDir = " + famDir +
+                                           "\n file = " + file  + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\");     // The \n makes the dialog box longer, which in turns makes it wider so it can fit the file names.
+             */   // If directory does not exist, create it
+                //if (!Directory.Exists(famTypeDir)) { Directory.CreateDirectory(famTypeDir); }
+               // if (!Directory.Exists(famManfDir)) { Directory.CreateDirectory(famManfDir); }
+                if (!Directory.Exists(famDir)) { Directory.CreateDirectory(famDir); }
+
+                try
+                {
+                    Document currSelFam = actvDoc.EditFamily(fam);
+
+                    SaveAsOptions saveoptions = new SaveAsOptions();
+                    saveoptions.OverwriteExistingFile = true;
+
+                    using (Transaction trans = new Transaction(actvDoc, "Load Family"))
+                    {
+                        currSelFam.SaveAs(file, saveoptions);
+                        currSelFam.Close(false);
+                    }
+                }
+                catch (System.Exception ex)
+                { TaskDialog.Show("CreateAndFill_FamilyDirTree", file + " Exception: \n" + ex); }
+
+            }   // End For each Family
+        }
+
+        #endregion   // End Of Create and Fill Families in Dir tree
+
+
+
+
+        #region  // Convert a CVS File to a Structured Data so we can work with.famDstnct_lst
         public void Csv_to_DB(UIDocument uidoc, List<Family> families)
         {
             foreach (Family fam in families)
@@ -104,10 +168,10 @@ namespace KDS_Module
                 var est_db_hdr = File.ReadLines(csvFilePath)
                     .First(); // For header
 
-                //TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr.ToString());
+                TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr.ToString());
 
                 var est_db_hdr_1 = est_db_hdr.Skip(1);
-                //TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr_1.ToString());
+                TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr_1.ToString());
 
                 var est_db = File.ReadAllLines(csvFilePath)
                                  .Skip(1) // For header
@@ -155,7 +219,7 @@ namespace KDS_Module
 
                 if (count > 0)
                 {
-                    //TaskDialog.Show("csv2db", "TDS: " + TDS);
+                    TaskDialog.Show("csv2db", "TDS: " + TDS);
                 }
 
                 string folderName = null;
@@ -167,9 +231,16 @@ namespace KDS_Module
                     folderName = input.Substring(0, j);
                 }
 
-                string file = sharedParameter_dir +"fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".csv";
+                string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".csv";
 
                 sb1 += file + "\n";
+                /*string fileToCopy = "c:\\myFolder\\myFile.txt";
+                string destinationDirectory = "c:\\myDestinationFolder\\";
+
+                File.Copy(fileToCopy, destinationDirectory + Path.GetFileName(fileToCopy));
+*/
+
+
 
                 using (var stream = File.CreateText(file))
                 {
@@ -184,10 +255,10 @@ namespace KDS_Module
                     }
                 }
                 // end foreach famName
-                // TaskDialog.Show("test", sb1);
+                TaskDialog.Show("test", sb1);
             }
-        }
-        // end of CSV_TO_DB
+        }  // end of CSV_TO_DB
+        #endregion  // End Of Convert a CVS File to a Structured Data so we can work with.famDstnct_lst
 
         public void Create_sharedParameter_inFamily(UIDocument uidoc, Family family)
         {
@@ -280,7 +351,7 @@ namespace KDS_Module
             }
             catch (System.Exception ex)
             { TaskDialog.Show("test", "Exception: " + ex); }
-            return;
+
         }  // End of create_sharedPamaeter_in_Family
 
         public void CreateAndSetFormula(ExternalDefinition eDef, UIDocument uidoc, Document currSelFam)
@@ -409,6 +480,6 @@ namespace KDS_Module
 
         }// end of Get_PipeFitting_FamilySymbols    
     }  //end of Class create_update_Fam_KDS_CSV
-#endregion  // create_update_Fam_KDS_CSV
+    #endregion  // create_update_Fam_KDS_CSV
 
 }  // End of Namespace KDS_Module
