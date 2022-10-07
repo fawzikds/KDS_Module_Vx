@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using static System.Net.WebRequestMethods;
 
 namespace KDS_Module
 {
@@ -51,36 +52,52 @@ namespace KDS_Module
             List<string> famNm_lst = new List<string>();
             List<Family> famMain_lst = new List<Family>();
             List<Family> famDstnct_lst = new List<Family>();
-
-            List<BuiltInCategory> builtInCats = new List<BuiltInCategory>();
-
-            builtInCats.Add(BuiltInCategory.OST_PipeFitting);
-            //builtInCats.Add(BuiltInCategory.OST_PlumbingFixtures);
-            //builtInCats.Add(BuiltInCategory.OST_PipeAccessory);
-
-            ElementMulticategoryFilter filter1 = new ElementMulticategoryFilter(builtInCats);
-
-            famElem_lst = new FilteredElementCollector(uidoc.Document).WherePasses(filter1).WhereElementIsElementType().ToList();
-
-            foreach (Element el in famElem_lst)
-            {
-                famSmbl_lst.Add(el as FamilySymbol);
-            }
-
-            TaskDialog.Show("Execute", "famSmbl_lst.Count: " + famSmbl_lst.Count());
-
-
-            famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
-            famDstnct_lst = famMain_lst //how to find unique families based on family name, not family type, of given categories
-                .GroupBy(f => f.Name)
-                .Select(g => g.First())
-                .ToList();
-
-            TaskDialog.Show("Execute", "famDstnct_lst.Count: " + famDstnct_lst.Count());
+            List<FamTypFam_strct> FamTypFam_lst = new List<FamTypFam_strct>();
             #endregion // Initializations, Filters, Collections //
 
-            CreateAndFill_FamilyDirTree(uidoc, famDstnct_lst);
-            return Result.Succeeded;
+            #region   // Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
+            List<BuiltInCategory> bic_lst = new List<BuiltInCategory>();
+
+            bic_lst.Add(BuiltInCategory.OST_PipeFitting);
+            bic_lst.Add(BuiltInCategory.OST_PlumbingFixtures);
+            bic_lst.Add(BuiltInCategory.OST_PipeAccessory);
+            #endregion  // End Of Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
+
+            #region // Loop Thru every Category of Families and get all of its Elements in the actvDocument
+            foreach (BuiltInCategory bic in bic_lst)
+            {
+                famElem_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().ToList();
+                famSmbl_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().Select(df => df as FamilySymbol).ToList();
+                famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
+                famDstnct_lst = famMain_lst.GroupBy(f => f.Name).Select(g => g.First()).ToList();    //how to find unique families based on family name, not family type, of given categories
+
+                FamTypFam_strct FamTypFam = new FamTypFam_strct();
+                FamTypFam.famTyp = bic;
+                FamTypFam.fam_lst = famDstnct_lst;
+                FamTypFam_lst.Add(FamTypFam);
+
+            }
+            //TaskDialog.Show("Execute", "FamTypFam_lst Count = " + FamTypFam_lst.Count());
+
+            #endregion // End Of Loop Thru every Category of Families and get all of its Elements in the actvDocument
+
+            #region   // Loop thru every Category and Create the Dir Tree if it does not exist
+            if (FamTypFam_lst.Count() > 0)
+            {
+                string ftf_tds = "famSmbl_lst.Count: " + FamTypFam_lst.Count();
+                foreach (FamTypFam_strct ftf in FamTypFam_lst)
+                {
+                    ftf_tds +=
+                    "\n Family Type: " + ftf.famTyp +
+                    "\n Count: " + ftf.fam_lst.Count;
+                    CreateAndFill_FamilyDirTree(uidoc, ftf.famTyp, ftf.fam_lst);
+                }  // End of for each FamTyFam ftf
+                //TaskDialog.Show("Execute", ftf_tds);
+
+            }// End if FamTypFam_lst is >0
+            #endregion   // End OF Loop thru every Category and Create the Dir Tree if it does not exist
+
+            return Result.Succeeded;  //-------------------------------------===================================
 
 
             #region // Split up CSV file //
@@ -103,7 +120,7 @@ namespace KDS_Module
 
         #region   // Create and Fill Families in Dir tree
 
-        public void CreateAndFill_FamilyDirTree(UIDocument uiDoc, List<Family> famDstnct_lst)
+        public void CreateAndFill_FamilyDirTree(UIDocument uiDoc, BuiltInCategory bic, List<Family> famDstnct_lst)
         {
 
             Document actvDoc = uiDoc.Document;
@@ -112,6 +129,11 @@ namespace KDS_Module
             {
                 string folderName = null;
                 string input = fam.Name;
+
+                //string famClass = fam.get_Parameter(BuiltInParameter.fam);
+                //BuiltInParameter _bip = BuiltInParameter.OMNICLASS_CODE;
+
+
                 int j = input.IndexOf("-");
 
                 if (j >= 0)
@@ -119,19 +141,21 @@ namespace KDS_Module
                     folderName = input.Substring(0, j);
                 }
 
-                string famTypeDir = sharedParameter_dir + "fittings\\";     // z:\BIM\KDS_TEMPLATE\2022\fittings
+                //string famTypeDir = sharedParameter_dir + BuiltInCategory.OST_PipeFitting.ToString() + "\\";     // z:\BIM\KDS_TEMPLATE\2022\fittings
+                string famTypeDir = sharedParameter_dir + bic + "\\";     // z:\BIM\KDS_TEMPLATE\2022\fittings
                 string famManfDir = famTypeDir + folderName + "\\";                // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH
                 string famDir = famManfDir + fam.Name + "\\";                      // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\
                 //string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".rfa";   // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\KDS_Char_CI_NH_Coupling.rfa
                 string file = famDir + fam.Name + ".rfa";
-               /* TaskDialog.Show("CreateAndFill_FamilyDirTree", "filename = " + fam.Name +
+                TaskDialog.Show("CreateAndFill_FamilyDirTree", "filename = " + fam.Name +
                                            "\n famTypeDir = " + famTypeDir +
                                            "\n famManfDir = " + famManfDir +
                                            "\n famDir = " + famDir +
-                                           "\n file = " + file  + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\");     // The \n makes the dialog box longer, which in turns makes it wider so it can fit the file names.
-             */   // If directory does not exist, create it
+                                           "\n file = " + file + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");     // The \n makes the dialog box longer, which in turns makes it wider so it can fit the file names.
+
+                //If directory does not exist, create it
                 //if (!Directory.Exists(famTypeDir)) { Directory.CreateDirectory(famTypeDir); }
-               // if (!Directory.Exists(famManfDir)) { Directory.CreateDirectory(famManfDir); }
+                //if (!Directory.Exists(famManfDir)) { Directory.CreateDirectory(famManfDir); }
                 if (!Directory.Exists(famDir)) { Directory.CreateDirectory(famDir); }
 
                 try
@@ -165,7 +189,7 @@ namespace KDS_Module
             {
                 string famName = fam.Name;
 
-                var est_db_hdr = File.ReadLines(csvFilePath)
+                var est_db_hdr = System.IO.File.ReadLines(csvFilePath)
                     .First(); // For header
 
                 TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr.ToString());
@@ -173,7 +197,7 @@ namespace KDS_Module
                 var est_db_hdr_1 = est_db_hdr.Skip(1);
                 TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr_1.ToString());
 
-                var est_db = File.ReadAllLines(csvFilePath)
+                var est_db = System.IO.File.ReadAllLines(csvFilePath)
                                  .Skip(1) // For header
                                  .Select(s => Regex.Match(s, @"^(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?)$"))
                                  .Select(data => new
@@ -242,7 +266,7 @@ namespace KDS_Module
 
 
 
-                using (var stream = File.CreateText(file))
+                using (var stream = System.IO.File.CreateText(file))
                 {
                     //for (int i = 0; i < reader.Count(); i++)
                     foreach (var ds in est_db_fam)
@@ -479,6 +503,24 @@ namespace KDS_Module
             return selectedFamilyTypes_lst;
 
         }// end of Get_PipeFitting_FamilySymbols    
+
+        #region // FamTypFam_strct
+        public struct FamTypFam_strct
+        {
+            public BuiltInCategory famTyp;
+            public List<Family> fam_lst;
+
+            public FamTypFam_strct(BuiltInCategory famTyp, List<Family> fam_lst)
+            {
+                this.famTyp = famTyp;
+                this.fam_lst = fam_lst;
+
+            }
+
+        } // End of FamTypFam_strct
+        #endregion  // End of FamTypFam_strct
+
+
     }  //end of Class create_update_Fam_KDS_CSV
     #endregion  // create_update_Fam_KDS_CSV
 
