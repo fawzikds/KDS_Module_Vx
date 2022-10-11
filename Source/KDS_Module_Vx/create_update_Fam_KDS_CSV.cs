@@ -1,10 +1,9 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
-using static System.Net.WebRequestMethods;
 
 namespace KDS_Module
 {
@@ -19,7 +18,7 @@ namespace KDS_Module
     public class create_update_Fam_KDS_CSV : IExternalCommand
     {
         #region  // Setup Revit Revision Dependent csvFilePath
-        const string csvFilePath = "Z:\\BIM\\Families\\SupplierCode\\CI_NH_fittings_Charlotte_KDS.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
+        const string csvFilePath_const = "Z:\\BIM\\Families\\SupplierCode\\CI_NH_fittings_Charlotte_KDS.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
 #if (RVT2022)
         const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2022\\";
         const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";            // Shared Parmeters.. this is how we get into the family parameters.  i am still not sure if this is best to use.
@@ -51,8 +50,9 @@ namespace KDS_Module
             List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
             List<string> famNm_lst = new List<string>();
             List<Family> famMain_lst = new List<Family>();
-            List<Family> famDstnct_lst = new List<Family>();
-            List<FamTypFam_strct> FamTypFam_lst = new List<FamTypFam_strct>();
+            List<Family> DstnctFam_lst = new List<Family>();
+            List<bicFam_strct> bicFam_lst = new List<bicFam_strct>();   // holds list of all families per bic
+            List<bicFam_strct> bicDstnctFam_lst = new List<bicFam_strct>();    // Holds lists of distinct famlies per bic
             #endregion // Initializations, Filters, Collections //
 
             #region   // Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
@@ -64,49 +64,105 @@ namespace KDS_Module
             #endregion  // End Of Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
 
             #region // Loop Thru every Category of Families and get all of its Elements in the actvDocument
+            // Then store in bicFam structure so we can access all families by their Category.
+            string bicfam_tds = " Family Count per BIC\n";
             foreach (BuiltInCategory bic in bic_lst)
             {
                 famElem_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().ToList();
                 famSmbl_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().Select(df => df as FamilySymbol).ToList();
                 famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
-                famDstnct_lst = famMain_lst.GroupBy(f => f.Name).Select(g => g.First()).ToList();    //how to find unique families based on family name, not family type, of given categories
+                // This get a unique list of all families per Category.
+                DstnctFam_lst = famMain_lst.GroupBy(f => f.Name).Select(g => g.First()).ToList();    //how to find unique families based on family name, not family type, of given categories
 
-                FamTypFam_strct FamTypFam = new FamTypFam_strct();
-                FamTypFam.famTyp = bic;
-                FamTypFam.fam_lst = famDstnct_lst;
-                FamTypFam_lst.Add(FamTypFam);
+                // Load List for families per bic
+                bicFam_strct bicFam = new bicFam_strct();
+                bicFam.bic = bic.ToString();
+                bicFam.fam_lst = famMain_lst;  //DstnctFam_lst;
+                bicFam_lst.Add(bicFam);
 
+                // Load List for Distinct family nmaes per bic
+                bicFam_strct bicDstnctFam = new bicFam_strct();
+                bicDstnctFam.bic = bic.ToString();
+                bicDstnctFam.fam_lst = DstnctFam_lst;
+                bicDstnctFam_lst.Add(bicDstnctFam);
+
+                bicfam_tds += "\n BIC: " + bicFam.bic + ":: Count = " + bicFam.fam_lst.Count();
+                //TaskDialog.Show("Execute", "BIC: " + bicFam.famTyp + ":: Count = " + bicFam.fam_lst.Count()+ "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
             }
-            //TaskDialog.Show("Execute", "FamTypFam_lst Count = " + FamTypFam_lst.Count());
+            //TaskDialog.Show("Execute", bicfam_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
 
             #endregion // End Of Loop Thru every Category of Families and get all of its Elements in the actvDocument
 
-            #region   // Loop thru every Category and Create the Dir Tree if it does not exist
-            if (FamTypFam_lst.Count() > 0)
-            {
-                string ftf_tds = "famSmbl_lst.Count: " + FamTypFam_lst.Count();
-                foreach (FamTypFam_strct ftf in FamTypFam_lst)
-                {
-                    ftf_tds +=
-                    "\n Family Type: " + ftf.famTyp +
-                    "\n Count: " + ftf.fam_lst.Count;
-                    CreateAndFill_FamilyDirTree(uidoc, ftf.famTyp, ftf.fam_lst);
-                }  // End of for each FamTyFam ftf
-                //TaskDialog.Show("Execute", ftf_tds);
 
-            }// End if FamTypFam_lst is >0
+            #region   // Loop thru every Category and Create the Dir Tree if it does not exist
+            if (bicFam_lst.Count() > 0)
+            {
+                string ftf_tds = "famSmbl_lst.Count: " + bicFam_lst.Count();
+                foreach (bicFam_strct bicfam in bicFam_lst)
+                {
+                    ftf_tds += "\n Family BIC: " + bicfam.bic + ":: Count: " + bicfam.fam_lst.Count;
+                    if (bicfam.fam_lst.Count > 0)
+                    {
+                        CreateAndFill_FamilyDirTree(uidoc, bicfam.bic, bicfam.fam_lst);
+                    }
+                }  // End of for each FamTyFam ftf
+                //TaskDialog.Show("Execute", ftf_tds + "\n\n\n\n\n\n\n\n\n\n\n\n");
+            }// End if bicFam_lst is >0
             #endregion   // End OF Loop thru every Category and Create the Dir Tree if it does not exist
 
-            return Result.Succeeded;  //-------------------------------------===================================
 
+            #region   // Loop thru every Category and show Distinct Families
+            if (bicDstnctFam_lst.Count() > 0)
+            {
+                string ftf_tds = "bicDstnctFam.Count: " + bicFam_lst.Count();
+                foreach (bicFam_strct bicDstnctFam in bicDstnctFam_lst)
+                {
 
+                    ftf_tds = "\n Family BIC: " + bicDstnctFam.bic + ":: Count: " + bicDstnctFam.fam_lst.Count;
+                    if (bicDstnctFam.fam_lst.Count > 0)
+                    {
+                        int ftf_bic_int = 0;
+                        foreach (Family dstnctfam in bicDstnctFam.fam_lst)
+                        {
+                            ftf_bic_int++;
+                            ftf_tds += "\n" + ftf_bic_int + "- " + dstnctfam.Name;
+                        }
+                        //TaskDialog.Show("Execute", ftf_tds + "\n\n\n\n\n\n\n\n\n\n\n\n");
+                        Csv_to_DB(uidoc, csvFilePath_const, bicDstnctFam.bic, bicDstnctFam.fam_lst);   // Convert CVS to a Structured Data
+                    }
+                }  // End of for each FamTyFam ftf
+
+            }// End if bicFam_lst is >0
+            #endregion   // End OF Loop thru every Category and Create the Dir Tree if it does not exist
+
+            /*
             #region // Split up CSV file //
+            if (bicDstnctFam_lst.Count() > 0)
+            {
+                foreach (bicFam_strct bicDstnctFam in bicDstnctFam_lst)
+                {
+                    string ftf_tds = "\n Family BIC: " + bicDstnctFam.bic + ":: Count: " + bicDstnctFam.fam_lst.Count;
+                    if (bicDstnctFam.fam_lst.Count > 0)
+                    {
 
-            Csv_to_DB(uidoc, famDstnct_lst);   // Convert CVS to a Structured Data
+                        foreach (Family dstnctfam in bicDstnctFam.fam_lst)
+                        {
+                            TaskDialog.Show("Execute", "bic:" + bicDstnctFam.bic);
+                            if (bicDstnctFam.fam_lst.Count > 0)
+                            {
+                                Csv_to_DB(uidoc, csvFilePath_const, bicDstnctFam.bic, bicDstnctFam.fam_lst);   // Convert CVS to a Structured Data
+                            }
+                        }
+                    }
+                }
+            }
             #endregion
+            */
+            return Result.Succeeded;  //=====================================================
+
 
             #region // Import csv in families //
-            foreach (Family fam in famDstnct_lst)
+            foreach (Family fam in DstnctFam_lst)
             {
                 ImportSizeLookUpTable(uidoc, fam);
                 Create_sharedParameter_inFamily(uidoc, fam);
@@ -120,12 +176,12 @@ namespace KDS_Module
 
         #region   // Create and Fill Families in Dir tree
 
-        public void CreateAndFill_FamilyDirTree(UIDocument uiDoc, BuiltInCategory bic, List<Family> famDstnct_lst)
+        public void CreateAndFill_FamilyDirTree(UIDocument uiDoc, String bic, List<Family> DstnctFam_lst)
         {
 
-            Document actvDoc = uiDoc.Document;
+            Autodesk.Revit.DB.Document actvDoc = uiDoc.Document;
 
-            foreach (Family fam in famDstnct_lst)
+            foreach (Family fam in DstnctFam_lst)
             {
                 string folderName = null;
                 string input = fam.Name;
@@ -147,142 +203,189 @@ namespace KDS_Module
                 string famDir = famManfDir + fam.Name + "\\";                      // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\
                 //string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".rfa";   // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\KDS_Char_CI_NH_Coupling.rfa
                 string file = famDir + fam.Name + ".rfa";
-                TaskDialog.Show("CreateAndFill_FamilyDirTree", "filename = " + fam.Name +
-                                           "\n famTypeDir = " + famTypeDir +
-                                           "\n famManfDir = " + famManfDir +
-                                           "\n famDir = " + famDir +
-                                           "\n file = " + file + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");     // The \n makes the dialog box longer, which in turns makes it wider so it can fit the file names.
-
+                /* DEBUG  TaskDialog.Show("CreateAndFill_FamilyDirTree", "filename = " + fam.Name +
+                                            "\n famTypeDir = " + famTypeDir +
+                                            "\n famManfDir = " + famManfDir +
+                                            "\n famDir = " + famDir +
+                                            "\n file = " + file + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");     // The \n makes the dialog box longer, which in turns makes it wider so it can fit the file names.
+ */
                 //If directory does not exist, create it
-                //if (!Directory.Exists(famTypeDir)) { Directory.CreateDirectory(famTypeDir); }
-                //if (!Directory.Exists(famManfDir)) { Directory.CreateDirectory(famManfDir); }
                 if (!Directory.Exists(famDir)) { Directory.CreateDirectory(famDir); }
 
-                try
+                // if file Does not exists or if it is older than curren... recreate it
+                if (!System.IO.File.Exists(file))//|| (System.IO.File.GetCreationTime(file) < DateTime.UtcNow.AddDays(-1)))
                 {
-                    Document currSelFam = actvDoc.EditFamily(fam);
-
-                    SaveAsOptions saveoptions = new SaveAsOptions();
-                    saveoptions.OverwriteExistingFile = true;
-
-                    using (Transaction trans = new Transaction(actvDoc, "Load Family"))
+                    try
                     {
-                        currSelFam.SaveAs(file, saveoptions);
-                        currSelFam.Close(false);
+                        Autodesk.Revit.DB.Document currSelFam = actvDoc.EditFamily(fam);
+
+                        SaveAsOptions saveoptions = new SaveAsOptions();
+                        saveoptions.OverwriteExistingFile = true;
+
+                        using (Transaction trans = new Transaction(actvDoc, "Load Family"))
+                        {
+                            currSelFam.SaveAs(file, saveoptions);
+                            currSelFam.Close(false);
+                        }
                     }
-                }
-                catch (System.Exception ex)
-                { TaskDialog.Show("CreateAndFill_FamilyDirTree", file + " Exception: \n" + ex); }
+                    catch (System.Exception ex)
+                    { TaskDialog.Show("CreateAndFill_FamilyDirTree", file + " Exception: \n" + ex); }
+                }  // End of if File Exists or older
 
             }   // End For each Family
-        }
+        }  // End of CreateAndFill_FamilyDirTree
 
         #endregion   // End Of Create and Fill Families in Dir tree
 
 
 
-
-        #region  // Convert a CVS File to a Structured Data so we can work with.famDstnct_lst
-        public void Csv_to_DB(UIDocument uidoc, List<Family> families)
+        #region  // Convert a CVS File to a Structured Data so we can work with.DstnctFam_lst
+        // we have to use the Distinct Family list, (DstnctFam_lst) since we will have multiple lines that
+        // represents different fitting sizes for each family that will need to go into the same csv file.
+        public void Csv_to_DB(UIDocument uidoc, string csvFilePath_const, string famBIC_Nm, List<Family> DstnctFam_lst)
         {
-            foreach (Family fam in families)
+
+
+
+            #region // test input lst
+            string ftf_tds = "\n Family BIC: " + famBIC_Nm + ":: Count: " + DstnctFam_lst.Count;
+            if (DstnctFam_lst.Count > 0)
             {
-                string famName = fam.Name;
-
-                var est_db_hdr = System.IO.File.ReadLines(csvFilePath)
-                    .First(); // For header
-
-                TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr.ToString());
-
-                var est_db_hdr_1 = est_db_hdr.Skip(1);
-                TaskDialog.Show("csv_DB", "hdr:  " + est_db_hdr_1.ToString());
-
-                var est_db = System.IO.File.ReadAllLines(csvFilePath)
-                                 .Skip(1) // For header
-                                 .Select(s => Regex.Match(s, @"^(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?),(.*?)$"))
-                                 .Select(data => new
-                                 {
-                                     famName = data.Groups[1].Value,
-                                     Size = data.Groups[2].Value,
-                                     ND1 = data.Groups[3].Value,
-                                     ND2 = data.Groups[4].Value,
-                                     ND3 = data.Groups[5].Value,
-                                     ND4 = data.Groups[6].Value,
-                                     KDS_MfrPart = data.Groups[7].Value,
-                                     KDS_HPH = data.Groups[8].Value,
-                                     KDS_MfrList = data.Groups[9].Value,
-                                     KDS_MCAA_LBR_RATE = data.Groups[10].Value,
-                                     KDS_LBR_RATE = data.Groups[11].Value
-                                 });
-                string sb1 = null;
-
-                //var est_db_combo = est_db.Where(ds => ds.famName.Equals("KDS_Char_CI_NH_Combo")); //.Select(ds => ds.KDS_MfrList);
-                var est_db_fam = est_db.Where(ds => ds.famName.Equals(famName))
-                    .Select(ds => new
-                    {
-                        Size = ds.Size,
-                        ND1 = ds.ND1,
-                        ND2 = ds.ND2,
-                        ND3 = ds.ND3,
-                        ND4 = ds.ND4,
-                        KDS_MfrPart = ds.KDS_MfrPart,
-                        KDS_HPH = ds.KDS_HPH,
-                        KDS_MfrList = ds.KDS_MfrList,
-                        KDS_MCAA_LBR_RATE = ds.KDS_MCAA_LBR_RATE,
-                        KDS_LBR_RATE = ds.KDS_LBR_RATE
-                    });
-
-                int count = est_db_fam.Count();
-
-                string TDS = "count: " + count;
-
-                foreach (var ds in est_db_fam)
+                int ftf_bic_int = 0;
+                foreach (Family dstnctfam in DstnctFam_lst)
                 {
-                    TDS += "\n ds.KDS_LBR_RATE: " + ds.KDS_LBR_RATE + ":: ds.Size= " + ds.Size + " :: ds.KDS_HPH = " + ds.KDS_HPH + " :: ds.KDS_MfrList = " + ds.KDS_MfrList;
+                    ftf_bic_int++;
+                    ftf_tds += "\n" + ftf_bic_int + "- " + dstnctfam.Name;
                 }
-
-                if (count > 0)
-                {
-                    TaskDialog.Show("csv2db", "TDS: " + TDS);
-                }
-
-                string folderName = null;
-                string input = famName;
-                int j = input.IndexOf("-");
-
-                if (j >= 0)
-                {
-                    folderName = input.Substring(0, j);
-                }
-
-                string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".csv";
-
-                sb1 += file + "\n";
-                /*string fileToCopy = "c:\\myFolder\\myFile.txt";
-                string destinationDirectory = "c:\\myDestinationFolder\\";
-
-                File.Copy(fileToCopy, destinationDirectory + Path.GetFileName(fileToCopy));
-*/
-
-
-
-                using (var stream = System.IO.File.CreateText(file))
-                {
-                    //for (int i = 0; i < reader.Count(); i++)
-                    foreach (var ds in est_db_fam)
-                    {
-                        //string first = reader[i].ToString();
-                        //string second = image.ToString();
-                        string csvRow = string.Format("{0},{1},{2},{3},{4},{5} ", ds.Size, ds.KDS_HPH, ds.KDS_MfrPart, ds.KDS_MCAA_LBR_RATE, ds.KDS_LBR_RATE, ds.KDS_MfrList);
-                        //string.Join(",", line);
-                        stream.WriteLine(csvRow);
-                    }
-                }
-                // end foreach famName
-                TaskDialog.Show("test", sb1);
+                //TaskDialog.Show("Csv_to_DB", ftf_tds + "\n\n\n\n\n\n\n\n\n\n\n\n");
             }
+            else { TaskDialog.Show("Csv_to_DB", "Distinct Family List Count is: " + DstnctFam_lst.Count); }
+
+            #endregion // End Of test input list
+
+            #region  // Get Data from the KDS Estimation CSV File.
+            // I seperated  getting the header and the data as 2 IO transactions since i am not
+            // sure if i loaded the file once into a var, then i split it into a hdr and data,
+            // i will have the file in memory, twice.
+            // Get all Data from KDS est Files .. This will include Headers.
+            est_data_class est_db_hdr = new est_data_class();
+            List<est_data_class> est_data_class_lst = new List<est_data_class>();
+            // File may be locked by another process use try.
+            try
+            {
+                // Get the First line from the KDS Est Data File as Column Headers
+
+                est_db_hdr = est_data_class.FromCsv(System.IO.File.ReadAllLines(csvFilePath_const).First());
+                //TaskDialog.Show("csv_DB", "BIC : " + famBIC_Nm + "\n  - Formatted Header: \n\n " + est_db_hdr.ToFormatString() + "\n\n - CSV Format: " + est_db_hdr.ToCsvString());
+
+                est_data_class_lst = File.ReadAllLines(csvFilePath_const)
+                                                        .Skip(1)
+                                                        .Select(v => est_data_class.FromCsv(v))
+                                                        .ToList();
+                //TaskDialog.Show("csv_DB", "BIC : " + famBIC_Nm + "\n - Formatted Data:  \n\n" + est_data_class_lst[2].ToFormatString() + "\n\n - CSV Format: " + est_data_class_lst[2].ToCsvString());
+                //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! The Contents seems to be the same regardless of BIC   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            }
+            catch (Exception ex)
+            {
+                TaskDialog.Show("csv_DB", " Exception in accessing KDS Estimation File:" + ex);
+            }
+
+            string tds_edc = "BIC: " + famBIC_Nm + ":: CSV File toList Count: " + est_data_class_lst.Count;
+            int edc_cnt = 0;
+            foreach (est_data_class est_data_class in est_data_class_lst)
+            {
+                edc_cnt++;
+                tds_edc += "\n " + edc_cnt + "- Formatted Data: " + est_data_class.ToCsvString();
+            }
+            TaskDialog.Show("Csv_to_DB", tds_edc);
+            #endregion  // Get Data from the KDS Estimation CSV File.
+
+
+
+            #region  // Loop Thru every Distinct Family and get its associated Rows from the Data var (est_db_data); Then Save these rows to a csv file.
+            string sb1 = null;
+            string dstnctFam_summary = " Distinct Family Summary for Category: " + famBIC_Nm + "\n";
+            int dstnctFam_summary_cnt = 0;
+
+            #region // Loop Thru every Distinct Family and get its associated Rows from the Data var (est_db_data);
+            foreach (Family DstnctFam in DstnctFam_lst)
+            {
+                string DstnctFam_nm = DstnctFam.Name;
+                //TaskDialog.Show("Csv_to_DB", "BIC: " + famBIC_Nm + ":: Currrent Distinct Family Name is: " + DstnctFam_nm + "\n\n\n\n\n\n\n\n\n\n");
+
+                List<est_data_class> est_db_DstnctFam_lst = est_data_class_lst.Where(dc => dc.famName.Equals(DstnctFam_nm)).ToList<est_data_class>();    // Holds the ows per Family to save a csv
+
+
+
+                if (est_db_DstnctFam_lst.Count > 0)
+                {
+                    dstnctFam_summary_cnt++;
+                    dstnctFam_summary += "\n " + dstnctFam_summary_cnt + "- Currrent Distinct Family " + DstnctFam_nm + " count: " + est_db_DstnctFam_lst.Count;
+
+                    //dstnctFam_summary += "\n Currrent Distinct Family " + DstnctFam_nm + " count: " + est_db_DstnctFam_lst.Count;
+                    //TaskDialog.Show("Csv_to_DB", "BIC: " + famBIC_Nm + ":: Currrent Distinct Family " + DstnctFam_nm + " count: " + est_db_DstnctFam_lst.Count + "\n\n\n\n\n\n\n\n\n\n");
+                    string TDS = "BIC: " + famBIC_Nm + "\n Distinct Family Count:" + est_db_DstnctFam_lst.Count() + "\n     Only One Family Name Should Appear Here    \n";
+                    int row_cnt = 0;
+
+                    foreach (var est_db_fam in est_db_DstnctFam_lst)
+                    {
+                        row_cnt++;
+                        TDS += "\n" + est_db_fam.ToFormatString();
+                    }
+
+                    //TaskDialog.Show("Csv_to_DB", "TDS: " + TDS);
+
+                    #endregion // End Of Loop Thru every Distinct Family and get its associated Rows from the Data var (est_db_data);
+
+                    #region  // Save these rows to a csv file.region
+
+                    string folderName = null;
+                    string input = DstnctFam_nm;
+                    int j = input.IndexOf("-");
+
+                    if (j >= 0)
+                    {
+                        folderName = input.Substring(0, j);
+                    }
+
+                    string file = sharedParameter_dir + famBIC_Nm + "\\" + folderName + "\\" + DstnctFam.Name + "\\" + DstnctFam.Name + ".csv";
+                    dstnctFam_summary += " -- CSV File Name:" + file;
+
+                    //sb1 += file + "\n";
+                    //string fileToCopy = "c:\\myFolder\\myFile.txt";
+                    //string destinationDirectory = "c:\\myDestinationFolder\\";
+
+                    //File.Copy(fileToCopy, destinationDirectory + Path.GetFileName(fileToCopy));
+
+
+
+
+                    /*using (var stream = System.IO.File.CreateText(file))
+                    {
+                        //for (int i = 0; i < reader.Count(); i++)
+                        foreach (var ds in est_db_fam)
+                        {
+                            //string first = reader[i].ToString();
+                            //string second = image.ToString();
+                            string csvRow = string.Format("{0},{1},{2},{3},{4},{5} ", ds.Size, ds.KDS_HPH, ds.KDS_MfrPart, ds.KDS_MCAA_LBR_RATE, ds.KDS_LBR_RATE, ds.KDS_MfrList);
+                            //string.Join(",", line);
+                            stream.WriteLine(csvRow);
+                        }  // End Of foreach est_db_fam
+                    }  // End Of Using
+
+
+                    TaskDialog.Show("CSV_TO_DB", sb1);
+                    */
+                    #endregion  // End Of Save Found Famiy rows to a csv file.
+                }  // end foreach famName
+
+            }   TaskDialog.Show("Csv_to_DB", "TDS: " + dstnctFam_summary);
+            #endregion  // Loop Thru every Distinct Family and get its associated Rows from the Data var (est_db_data); Then Save these rows to a csv file.
+
+
         }  // end of CSV_TO_DB
-        #endregion  // End Of Convert a CVS File to a Structured Data so we can work with.famDstnct_lst
+        #endregion  // End Of Convert a CVS File to a Structured Data so we can work with.DstnctFam_lst
+
 
         public void Create_sharedParameter_inFamily(UIDocument uidoc, Family family)
         {
@@ -299,7 +402,7 @@ namespace KDS_Module
 
 
             //  TaskDialog.Show("test", "inside Create_sharedParameter_inFamily");
-            Document actvDoc = uidoc.Document;
+            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
             // Set Filename for SharedParameters
             uidoc.Application.Application.SharedParametersFilename = sharedParameter_fn;
@@ -335,7 +438,7 @@ namespace KDS_Module
             bool found = false;
             try
             {
-                Document currSelFam = actvDoc.EditFamily(family);
+                Autodesk.Revit.DB.Document currSelFam = actvDoc.EditFamily(family);
 
                 FamilyManager familyMngr = currSelFam.FamilyManager;
 
@@ -378,7 +481,7 @@ namespace KDS_Module
 
         }  // End of create_sharedPamaeter_in_Family
 
-        public void CreateAndSetFormula(ExternalDefinition eDef, UIDocument uidoc, Document currSelFam)
+        public void CreateAndSetFormula(ExternalDefinition eDef, UIDocument uidoc, Autodesk.Revit.DB.Document currSelFam)
         {
             //TaskDialog.Show("test", "inside CreateSharedParameter");
 
@@ -397,7 +500,7 @@ namespace KDS_Module
 
         public void ImportSizeLookUpTable(UIDocument uidoc, Family fam)
         {
-            Document actvDoc = uidoc.Document;
+            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
             string filePath;
             string sb = null;
             IList<FamilySymbol> fs_lst;
@@ -423,7 +526,7 @@ namespace KDS_Module
             }
             // TaskDialog.Show("test", "folderName: " + folderName);
 
-            Document famDoc = fam.Document;
+            Autodesk.Revit.DB.Document famDoc = fam.Document;
 
             FamilySizeTableManager fstm = FamilySizeTableManager.GetFamilySizeTableManager(famDoc, fam.Id);
 
@@ -463,7 +566,7 @@ namespace KDS_Module
             //TaskDialog.Show("test", sb);
         }  // end of importSizeLookUpTable
 
-        public IList<FamilySymbol> Get_PipeFitting_FamilySymbols(Document actvDoc)
+        public IList<FamilySymbol> Get_PipeFitting_FamilySymbols(Autodesk.Revit.DB.Document actvDoc)
         {
             // WE CANNOT GET FAMILYTPE OUT OF PIPEFITTING CATEGORY  !!!! REVIT DEFECT !!!!
             // SO WE GET INTERSECTION OF PIPEFITTING_CATEGORY LIST WITH FAMILYSYMBOL LIST
@@ -504,24 +607,151 @@ namespace KDS_Module
 
         }// end of Get_PipeFitting_FamilySymbols    
 
-        #region // FamTypFam_strct
-        public struct FamTypFam_strct
+        #region // bicFam_strct
+        public struct bicFam_strct
         {
-            public BuiltInCategory famTyp;
+            public string bic;
             public List<Family> fam_lst;
 
-            public FamTypFam_strct(BuiltInCategory famTyp, List<Family> fam_lst)
+            public bicFam_strct(string bic, List<Family> fam_lst)
             {
-                this.famTyp = famTyp;
+                this.bic = bic;
                 this.fam_lst = fam_lst;
 
             }
 
-        } // End of FamTypFam_strct
-        #endregion  // End of FamTypFam_strct
+        } // End of bicFam_strct
+        #endregion  // End of bicFam_strct
+
+
+        #region // est_data_strct
+        public struct est_data_strct
+        {
+            public string famName;
+            public string Size;
+            public string ND1;
+            public string ND2;
+            public string ND3;
+            public string ND4;
+            public string KDS_MfrPart;
+            public string KDS_HPH;
+            public string KDS_MfrList;
+            public string KDS_MCAA_LBR_RATE;
+            public string KDS_LBR_RATE;
+
+            public est_data_strct(
+                string famName,
+            string Size,
+            string ND1,
+             string ND2,
+             string ND3,
+             string ND4,
+             string KDS_MfrPart,
+             string KDS_HPH,
+             string KDS_MfrList,
+             string KDS_MCAA_LBR_RATE,
+             string KDS_LBR_RATE)
+            {
+                this.famName = famName;
+                this.Size = Size;
+                this.ND1 = ND1;
+                this.ND2 = ND2;
+                this.ND3 = ND3;
+                this.ND4 = ND4;
+                this.KDS_MfrPart = KDS_MfrPart;
+                this.KDS_HPH = KDS_HPH;
+                this.KDS_MfrList = KDS_MfrList;
+                this.KDS_MCAA_LBR_RATE = KDS_MCAA_LBR_RATE;
+                this.KDS_LBR_RATE = KDS_LBR_RATE;
+            }
+
+        } // End of est_data_strct
+        #endregion  // End of est_data_strct
+
+
+
+
 
 
     }  //end of Class create_update_Fam_KDS_CSV
     #endregion  // create_update_Fam_KDS_CSV
+
+    #region  //est_data_class
+    class est_data_class
+    {
+        public string famName { get; set; }
+        public string Size { get; set; }
+        public string ND1 { get; set; }
+        public string ND2 { get; set; }
+        public string ND3 { get; set; }
+        public string ND4 { get; set; }
+        public string KDS_MfrPart { get; set; }
+        public string KDS_HPH { get; set; }
+        public string KDS_MfrList { get; set; }
+        public string KDS_MCAA_LBR_RATE { get; set; }
+        public string KDS_LBR_RATE { get; set; }
+
+        public static est_data_class FromCsv(string csvLine)
+        {
+            string[] values = csvLine.Split(',');
+            est_data_class est_data = new est_data_class();
+
+            est_data.Size = values[0];
+            est_data.famName = values[1];
+            est_data.ND1 = values[2];
+            est_data.ND2 = values[3];
+            est_data.ND3 = values[4];
+            est_data.ND4 = values[5];
+            est_data.KDS_MfrPart = values[6];
+            est_data.KDS_HPH = values[7];
+            est_data.KDS_MfrList = values[8];
+            est_data.KDS_MCAA_LBR_RATE = values[9];
+            est_data.KDS_LBR_RATE = values[10];
+
+            return est_data;
+        }  // End From Csv
+        public override string ToString()
+        {
+            return "" +
+                " famName: " + famName +
+                " :: Size = " + Size +
+                " :: ND1 = " + ND1 +
+                " :: ND2 = " + ND2 +
+                " :: ND3 = " + ND3 +
+                " :: ND4 = " + ND4 +
+                " :: KDS_MfrPart = " + KDS_MfrPart +
+                " :: KDS_HPH = " + KDS_HPH +
+                " :: KDS_MfrList = " + KDS_MfrList +
+                " :: KDS_MCAA_LBR_RATE = " + KDS_MCAA_LBR_RATE +
+                " :: KDS_LBR_RATE = " + KDS_LBR_RATE;
+        }  // End of ToString
+
+        public string ToFormatString()
+        {
+            return "" +
+                " famName: " + famName +
+                "\n Size = " + Size +
+                "\n ND1 = " + ND1 +
+                "\n ND2 = " + ND2 +
+                "\n ND3 = " + ND3 +
+                "\n ND4 = " + ND4 +
+                "\n KDS_MfrPart = " + KDS_MfrPart +
+                "\n KDS_HPH = " + KDS_HPH +
+                "\n KDS_MfrList = " + KDS_MfrList +
+                "\n KDS_MCAA_LBR_RATE = " + KDS_MCAA_LBR_RATE +
+                "\n KDS_LBR_RATE = " + KDS_LBR_RATE;
+        }  // End of ToFormatString
+        public string ToCsvString()
+        {
+            return famName + "," + Size + "," +
+                ND1 + "," + ND2 + "," + ND3 + "," + ND4 + "," +
+                KDS_MfrPart + "," + KDS_HPH + "," + KDS_MfrList + "," + KDS_MCAA_LBR_RATE + "," + KDS_LBR_RATE;
+        }  // End of ToCsvString
+
+    }  // End of Class est_data_class
+
+    #endregion  //est_data_class
+
+
 
 }  // End of Namespace KDS_Module
