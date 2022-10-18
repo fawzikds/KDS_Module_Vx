@@ -63,8 +63,8 @@ namespace KDS_Module
             List<BuiltInCategory> bic_lst = new List<BuiltInCategory>();
 
             //bic_lst.Add(BuiltInCategory.OST_PipeFitting);
-            bic_lst.Add(BuiltInCategory.OST_PlumbingFixtures);
-            //bic_lst.Add(BuiltInCategory.OST_PipeAccessory);
+            //bic_lst.Add(BuiltInCategory.OST_PlumbingFixtures);
+            bic_lst.Add(BuiltInCategory.OST_PipeAccessory);
             #endregion  // End Of Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
 
             #region // Loop Thru every Category of Families and get all of its Elements in the actvDocument
@@ -483,6 +483,9 @@ namespace KDS_Module
 
         #region // ImportSizeLookUpTable to Families
         // Imports the CSV lookup table file into a family.
+        // It turns out that The editmanager of a family does not gurantee the existance of a familysizetable manager.
+        //That is why you have to check for it first, then create it if it is null.
+        // After you create the familysizetable manager, then you can use it to handle the lookup csv files you want ot import, export or delete.
         public string ImportSizeLookUpTable(UIDocument uidoc, string bic_nm, Family DstnctFam)
         {
             // Get RFA and CSV File Name
@@ -496,16 +499,31 @@ namespace KDS_Module
                 string importError = "";
                 // Get the Family's Size and Table Manager
 
-
+// Get FSTM (Family Size Table Manager)
                 Autodesk.Revit.DB.Document DstnctFamEdt = actvDoc.EditFamily(DstnctFam);
                 Autodesk.Revit.DB.FamilySizeTableManager fstm = Autodesk.Revit.DB.FamilySizeTableManager.GetFamilySizeTableManager(DstnctFamEdt, DstnctFamEdt.OwnerFamily.Id);
-                if (fstm.IsValidObject)
+                // If FSTM is Null, then it does not exist, So create it.
+                if (fstm == null)
+                {
+                    //TaskDialog.Show("ImportSizeLookUpTable", "Starting with: " + "\n BIC: " + bic_nm + "\n DstnctFam.Name: " + DstnctFam.Name + "\n Creating an FSTM");
+                    bool fstmResult = Autodesk.Revit.DB.FamilySizeTableManager.CreateFamilySizeTableManager(DstnctFamEdt, DstnctFamEdt.OwnerFamily.Id);
+                    // If FSTM Created successfully then retrieve it
+                    if (fstmResult)
+                    {
+                        //TaskDialog.Show("ImportSizeLookUpTable", "Starting with: " + "\n BIC: " + bic_nm + "\n DstnctFam.Name: " + DstnctFam.Name + "\n Getting an FSTM"); 
+                        fstm = Autodesk.Revit.DB.FamilySizeTableManager.GetFamilySizeTableManager(DstnctFamEdt,  DstnctFamEdt.OwnerFamily.Id);
+                    }  // DstnctFamEdt.OwnerFamily.Id);
+                }
+                //TaskDialog.Show("ImportSizeLookUpTable", "Starting with: " + "\n BIC: " + bic_nm + "\n DstnctFam.Name: " + DstnctFam.Name + "\n DstnctFam.Id: " + DstnctFam.Id +
+                //    "\n DstnctFamEdt.OwnerFamily.Id: " + DstnctFamEdt.OwnerFamily.Id + "\n FSTM: " + fstm);
+                // If Retrieved FSTM is not Null, then use it.
+                if (fstm != null)
                 {
                     // Import the csv file into Family.
                     Transaction importTrans = new Transaction(DstnctFam.Document, "Importing csv File into Family ");
 
                     //TaskDialog.Show("ImportSizeLookUpTable", "Starting with: " + DstnctFam.Name);
-                    importTrans.Start("Start");
+                    importTrans.Start("Start"); 
 
                     // Create Error Info  for ImportSizeTable
                     FamilySizeTableErrorInfo errorInfo = new FamilySizeTableErrorInfo();
@@ -533,6 +551,7 @@ namespace KDS_Module
                     catch (Exception ex)
                     {
                         TaskDialog.Show("ImportSizeLookUpTable", "Error SaveAs after Loading family. \n Exception: " + ex);
+                        return null;
                     }
 
                     try
@@ -544,6 +563,7 @@ namespace KDS_Module
                     {
 
                         TaskDialog.Show("ImportSizeLookUpTable", "Error Close after Loading family. \n Exception: " + ex);
+                        return null;
                     }
                 }
                 return importError;
@@ -551,7 +571,7 @@ namespace KDS_Module
             catch (Exception ex)
             {
                 TaskDialog.Show("ImportSizeLookUpTable", " DstnctFam.Name: " + DstnctFam.Name + "\n With CSV: " + csvFilePath + "\n - lookuptableResult excepton: " + ex);
-                throw;
+                return null;
             }
 
         }  // end of importSizeLookUpTable
