@@ -48,6 +48,7 @@ namespace KDS_Module
             #region // Initializations, Filters, Collections //
 
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
+            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
             List<Element> famElem_lst;
             List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
@@ -62,8 +63,8 @@ namespace KDS_Module
             #region   // Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
             List<BuiltInCategory> bic_lst = new List<BuiltInCategory>();
 
-            //bic_lst.Add(BuiltInCategory.OST_PipeFitting);
-            //bic_lst.Add(BuiltInCategory.OST_PlumbingFixtures);
+            bic_lst.Add(BuiltInCategory.OST_PipeFitting);
+            bic_lst.Add(BuiltInCategory.OST_PlumbingFixtures);
             bic_lst.Add(BuiltInCategory.OST_PipeAccessory);
             #endregion  // End Of Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
 
@@ -148,9 +149,45 @@ namespace KDS_Module
                         foreach (Family DstnctFam in bicDstnctFam.fam_lst)
                         {
                             ftf_cnt++;
-                            imprt_tds += "\n " + ftf_cnt + "- " + DstnctFam.Name + ":: Errors: " + ImportSizeLookUpTable(uidoc, bicDstnctFam.bic_str, DstnctFam);
+                            // Get RFA and CSV File Name
+                            string DstnctFamPath = get_FileNames(sharedParameter_dir, bicDstnctFam.bic_str, DstnctFam.Name, ".rfa");
+                            string csvFilePath = get_FileNames(sharedParameter_dir, bicDstnctFam.bic_str, DstnctFam.Name, ".csv");
+                            //TaskDialog.Show("ImportSizeLookUpTable", "\n Document File Name : " + DstnctFamPath + "\n With csvFilePath: " + csvFilePath);
+                            Autodesk.Revit.DB.Document DstnctFamEdt = actvDoc.EditFamily(DstnctFam);
 
-                            //Create_sharedParameter_inFamily(uidoc, bicDstnctFam.bic, DstnctFam);
+                            // Get FSTM (Family Size Table Manager)
+                            imprt_tds += "\n " + ftf_cnt + "- " + DstnctFam.Name + ":: Errors: " + ImportSizeLookUpTable(actvDoc, bicDstnctFam.bic_str, DstnctFam, DstnctFamEdt, DstnctFamPath, csvFilePath);
+
+                            Create_sharedParameter_inFamily(actvDoc, bicDstnctFam.bic_str, DstnctFam, sharedParameter_fn, DstnctFamPath);
+
+
+                            DstnctFamEdt.LoadFamily(actvDoc, new familyLoadOptions()); // here the update begins
+                            //TaskDialog.Show("ImportSizeLookUpTable", "after  LoadFamily ");
+
+                            // Save family
+                            SaveAsOptions saveoptions = new SaveAsOptions();
+                            saveoptions.OverwriteExistingFile = true;
+
+                            try
+                            {
+                                DstnctFamEdt.SaveAs(DstnctFamPath, saveoptions);  // Error is here
+                                                                                  //TaskDialog.Show("ImportSizeLookUpTable", "after  SaveAs ");
+                            }
+                            catch (Exception ex)
+                            {
+                                TaskDialog.Show("ImportSizeLookUpTable", "Error SaveAs after Loading family. \n Exception: " + ex);
+                            }
+
+                            try
+                            {
+                                DstnctFamEdt.Close(false);
+                                //TaskDialog.Show("ImportSizeLookUpTable", "after  Close ");
+                            }
+                            catch (Exception ex)
+                            {
+                                TaskDialog.Show("ImportSizeLookUpTable", "Error Close after Loading family. \n Exception: " + ex);
+                            }
+
                         }  // foreach bicDstnctFam
                         TaskDialog.Show("Execute", imprt_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
                     }  // End Of if  bicDstnctFam.fam_lst.Count > 0
@@ -379,7 +416,9 @@ namespace KDS_Module
         #endregion  // End Of Convert a CVS File to a Structured Data so we can work with.DstnctFam_lst
 
         #region  // Create_sharedParameter_inFamily 
-        public void Create_sharedParameter_inFamily(UIDocument uidoc, string famBIC_Nm, Family family)
+
+        
+        public void Create_sharedParameter_inFamily(Document actvDoc, string famBIC_Nm, Family family, string sharedParameter_fn, string DstnctFamPath)
         {
             //TaskDialog.Show("test", "current family: " + family.Name);
             /// Hard Coded Formulas ///
@@ -391,12 +430,12 @@ namespace KDS_Module
             List<string> formulas = new List<string> { formula1, formula2, formula3, formula4 };
             /// Hard Coded Formulas ///
 
-            //  TaskDialog.Show("test", "inside Create_sharedParameter_inFamily");
-            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
+            //  TaskDialog.Show("Create_sharedParameter_inFamily", "inside Create_sharedParameter_inFamily");
+            //Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
             // Set Filename for SharedParameters
-            uidoc.Application.Application.SharedParametersFilename = sharedParameter_fn;
-            DefinitionFile defFile = uidoc.Application.Application.OpenSharedParameterFile();
+            actvDoc.Application.SharedParametersFilename = sharedParameter_fn;
+            DefinitionFile defFile = actvDoc.Application.OpenSharedParameterFile();
 
             // Get List of Groups
             DefinitionGroups myGroups = defFile.Groups;
@@ -412,7 +451,8 @@ namespace KDS_Module
             List<ExternalDefinition> eDef_lst = Def_lst.Select(df => df as ExternalDefinition).ToList();
 
 
-            string file = get_FileNames(sharedParameter_dir, famBIC_Nm, family.Name, ".rfa");
+            string file = sharedParameter_fn; //get_FileNames(sharedParameter_dir, famBIC_Nm, family.Name, ".rfa");
+            //TaskDialog.Show("Create_sharedParameter_inFamily", "sharedParameter File Name: " + file);
 
             bool found = false;
             try
@@ -443,7 +483,7 @@ namespace KDS_Module
                     }
                 }
 
-                SaveAsOptions saveoptions = new SaveAsOptions();
+                /*SaveAsOptions saveoptions = new SaveAsOptions();
                 saveoptions.OverwriteExistingFile = true;
 
                 using (Transaction trans = new Transaction(actvDoc, "Load Family"))
@@ -451,7 +491,7 @@ namespace KDS_Module
                     //currSelFam.LoadFamily(actvDoc, new FamilyLoadOptions());
                     currSelFam.SaveAs(file, saveoptions);
                     currSelFam.Close(false);
-                }
+                }*/
             }
             catch (System.Exception ex)
             { TaskDialog.Show("test", "Exception: " + ex); }
@@ -486,21 +526,16 @@ namespace KDS_Module
         // It turns out that The editmanager of a family does not gurantee the existance of a familysizetable manager.
         //That is why you have to check for it first, then create it if it is null.
         // After you create the familysizetable manager, then you can use it to handle the lookup csv files you want ot import, export or delete.
-        public string ImportSizeLookUpTable(UIDocument uidoc, string bic_nm, Family DstnctFam)
+        public string ImportSizeLookUpTable(Document actvDoc, string bic_nm, Family DstnctFam, Document DstnctFamEdt, string DstnctFamPath, string csvFilePath)
         {
-            // Get RFA and CSV File Name
-            string DstnctFamPath = get_FileNames(sharedParameter_dir, bic_nm, DstnctFam.Name, ".rfa");
-            string csvFilePath = get_FileNames(sharedParameter_dir, bic_nm, DstnctFam.Name, ".csv");
-            //TaskDialog.Show("ImportSizeLookUpTable", "\n Document File Name : " + DstnctFamPath + "\n With csvFilePath: " + csvFilePath);
+
 
             try
             {
-                Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
                 string importError = "";
                 // Get the Family's Size and Table Manager
 
-// Get FSTM (Family Size Table Manager)
-                Autodesk.Revit.DB.Document DstnctFamEdt = actvDoc.EditFamily(DstnctFam);
+
                 Autodesk.Revit.DB.FamilySizeTableManager fstm = Autodesk.Revit.DB.FamilySizeTableManager.GetFamilySizeTableManager(DstnctFamEdt, DstnctFamEdt.OwnerFamily.Id);
                 // If FSTM is Null, then it does not exist, So create it.
                 if (fstm == null)
@@ -511,7 +546,7 @@ namespace KDS_Module
                     if (fstmResult)
                     {
                         //TaskDialog.Show("ImportSizeLookUpTable", "Starting with: " + "\n BIC: " + bic_nm + "\n DstnctFam.Name: " + DstnctFam.Name + "\n Getting an FSTM"); 
-                        fstm = Autodesk.Revit.DB.FamilySizeTableManager.GetFamilySizeTableManager(DstnctFamEdt,  DstnctFamEdt.OwnerFamily.Id);
+                        fstm = Autodesk.Revit.DB.FamilySizeTableManager.GetFamilySizeTableManager(DstnctFamEdt, DstnctFamEdt.OwnerFamily.Id);
                     }  // DstnctFamEdt.OwnerFamily.Id);
                 }
                 //TaskDialog.Show("ImportSizeLookUpTable", "Starting with: " + "\n BIC: " + bic_nm + "\n DstnctFam.Name: " + DstnctFam.Name + "\n DstnctFam.Id: " + DstnctFam.Id +
@@ -523,7 +558,7 @@ namespace KDS_Module
                     Transaction importTrans = new Transaction(DstnctFam.Document, "Importing csv File into Family ");
 
                     //TaskDialog.Show("ImportSizeLookUpTable", "Starting with: " + DstnctFam.Name);
-                    importTrans.Start("Start"); 
+                    importTrans.Start("Start");
 
                     // Create Error Info  for ImportSizeTable
                     FamilySizeTableErrorInfo errorInfo = new FamilySizeTableErrorInfo();
@@ -532,39 +567,14 @@ namespace KDS_Module
                     Autodesk.Revit.DB.FamilySizeTableErrorInfo ImportErrorInfo = new Autodesk.Revit.DB.FamilySizeTableErrorInfo();
                     fstm.ImportSizeTable(DstnctFamEdt, csvFilePath, ImportErrorInfo);
                     //TaskDialog.Show("ImportSizeLookUpTable", "after  ImportSizeTable ");
+                    fstm.Dispose();
                     // End transaction
                     importTrans.Commit();
                     //TaskDialog.Show("ImportSizeLookUpTable", "after  Commit ");
 
-                    DstnctFamEdt.LoadFamily(actvDoc, new familyLoadOptions()); // here the update begins
-                    //TaskDialog.Show("ImportSizeLookUpTable", "after  LoadFamily ");
 
-                    SaveAsOptions saveoptions = new SaveAsOptions();
-                    saveoptions.OverwriteExistingFile = true;
 
-                    try
-                    {
-                        DstnctFamEdt.SaveAs(DstnctFamPath, saveoptions);  // Error is here
-                        //TaskDialog.Show("ImportSizeLookUpTable", "after  SaveAs ");
 
-                    }
-                    catch (Exception ex)
-                    {
-                        TaskDialog.Show("ImportSizeLookUpTable", "Error SaveAs after Loading family. \n Exception: " + ex);
-                        return null;
-                    }
-
-                    try
-                    {
-                        DstnctFamEdt.Close(false);
-                        //TaskDialog.Show("ImportSizeLookUpTable", "after  Close ");
-                    }
-                    catch (Exception ex)
-                    {
-
-                        TaskDialog.Show("ImportSizeLookUpTable", "Error Close after Loading family. \n Exception: " + ex);
-                        return null;
-                    }
                 }
                 return importError;
             }
