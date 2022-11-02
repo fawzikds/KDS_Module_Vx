@@ -2,6 +2,7 @@
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,14 +36,20 @@ namespace KDS_Module_Vx
             FamilySymbol sleeveFamSymbol = actvDoc.GetElement(sleeveFam.GetFamilySymbolIds().FirstOrDefault()) as FamilySymbol;
 
 
+            string flrTh_str = null;
+            string insTh_str = null;
+
             // Get a List of All Pipes that are Vertical and within 2" and 6" size
             FilteredElementCollector pipeCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Pipe));
             List<Pipe> pipes_lst = pipeCollector.Cast<Pipe>().ToList();
             List<Pipe> pipes_size_lst = pipes_lst.Where(p => p.Diameter > 0.146 && p.Diameter < .667).ToList<Pipe>();
             List<Pipe> pipes_size_slope_lst = pipes_size_lst.Where(p => IsVertical(p)).ToList<Pipe>();
-            TaskDialog.Show("insertSleeve", "All Available Pipes Count: " + pipes_lst.Count +
-               "\n Pipes of size between 2 and 6 inches Count: " + pipes_size_lst.Count +
-               "\n Pipes of correct size and Sloped vertically Count: " + pipes_size_slope_lst.Count);
+            TaskDialog.Show("insertSleeve",
+                "                          All Available Pipes Count: " + pipes_lst.Count +
+               //"\n        Pipes of size between 2 and 6 inches Count: " + pipes_size_lst.Count +
+               "\n            Pipes of size Less Than 6 inches Count: " + pipes_size_lst.Count +
+               "\n Pipes of correct size and Sloped vertically Count: " + pipes_size_slope_lst.Count +
+               "\n\n\n\n\n\n\n\n\n\n\n\n\n");
             #endregion   // Get Family of Sleeves and List of all Pipes in Host Doc.
 
 
@@ -60,7 +67,7 @@ namespace KDS_Module_Vx
             if (hostDoc_floors_lst.Count != 0 && hostDoc_floors_lst != null)    // --- Host Doc has Floors... So no need to create or Load from linked Docs
             {
                 TaskDialog.Show("insertSleeves", " Floors Found in Document. \n No Need to Create any Temp Floors. \n Host Document floors Count = " + hostDoc_floors_lst.Count);
-                insertSleeves(commandData.Application, pipes_size_slope_lst, hostDoc_floors_lst, sleeveFamSymbol);
+                insertSleeves(commandData.Application, pipes_size_slope_lst, hostDoc_floors_lst, sleeveFamSymbol, insTh_str);
 
             }
             else   // No Floors in Host Doc, so Check the Linked Models
@@ -158,7 +165,7 @@ namespace KDS_Module_Vx
 
                     TaskDialog.Show("insertSleeves", " Found " + hostDoc_cpdFlrs_lst.Count + " Floors in Host Document, after copying Floors from Linked Documents. \n No Need to Create any Temp Floors.");
 
-                    insertSleeves(commandData.Application, pipes_size_slope_lst, hostDoc_cpdFlrs_lst, sleeveFamSymbol);
+                    insertSleeves(commandData.Application, pipes_size_slope_lst, hostDoc_cpdFlrs_lst, sleeveFamSymbol, insTh_str);
 
 
                     TaskDialog.Show("insertSleeves", " Deleting All Copyed Floors from Linked Documents.");
@@ -167,13 +174,19 @@ namespace KDS_Module_Vx
 
                 else   // Neither Host Doc, Nor Linked Docs have Floors, so create ones based on host Doc Levels and get instersections.
                 {
+
+                    flrTh_str = Interaction.InputBox("Prompt", "Floor Thickness", "6.5", 800, 800);
+                    insTh_str = Interaction.InputBox("Prompt", "Insulation Thickness", "1.5", 800, 800);
+
+
+
                     TaskDialog.Show("insertSleeves", "    Neither Host Doc, Nor Linked Docs have Floors defined.  \n - Create Temp Floors based on host Doc Levels. \n - Place Sleeves at instersections with pipes. \n - Delete Temp Floors");
                     List<Floor> levelsFloors_lst = new List<Floor>();
                     // Create Temp Floors in Host DOc
-                    levelsFloors_lst = insertLevelFloors(commandData.Application, actvDoc);
+                    levelsFloors_lst = insertLevelFloors(commandData.Application, actvDoc, flrTh_str);
                     TaskDialog.Show("insertSleeves", "Created new Temp Floors. \n levelsFloors_lst.Count = " + levelsFloors_lst.Count);
                     // Insert Floor Sleeves ata intersections
-                    insertSleeves(commandData.Application, pipes_size_slope_lst, levelsFloors_lst, sleeveFamSymbol);
+                    insertSleeves(commandData.Application, pipes_size_slope_lst, levelsFloors_lst, sleeveFamSymbol, insTh_str);
 
                     TaskDialog.Show("insertSleeves", " Delete Temp Floors");
                     // Delete Temp Floors in Host DOc
@@ -190,7 +203,7 @@ namespace KDS_Module_Vx
 
 
         #region // insertSleeves Function to place sleeve where Pipe and Level intersect --- No Floor exists here. so we need to create floors as well//
-        public List<XYZ> insertSleeves(UIApplication uiApp, List<Pipe> pipes_lst, List<Floor> floors_lst, FamilySymbol sleeveFamSymbol)
+        public List<XYZ> insertSleeves(UIApplication uiApp, List<Pipe> pipes_lst, List<Floor> floors_lst, FamilySymbol sleeveFamSymbol, string insTh_str)
         {
             #region // Defining and Collection of Elements and Variables //
 
@@ -389,7 +402,7 @@ namespace KDS_Module_Vx
 
 
         #region // InsertFloor Function to create floor //
-        public Floor InsertFloor(UIApplication uiApp, Level lvl)
+        public Floor InsertFloor(UIApplication uiApp, Level lvl, string flrTh_str)
         {
             UIDocument uidoc = uiApp.ActiveUIDocument;
             Document actvDoc = uidoc.Document;
@@ -470,14 +483,41 @@ namespace KDS_Module_Vx
 #else
 #endif
 
-
                 Parameter p = floor.get_Parameter(BuiltInParameter.LEVEL_PARAM);
                 Parameter p1 = floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
-
+                Parameter p2 = floor.get_Parameter(BuiltInParameter.FLOOR_ATTR_DEFAULT_THICKNESS_PARAM);
+                Dictionary<string, double> flrTh_dict = new Dictionary<string, double>()
+                {
+                    {"4.0", 4.0},{"4", 4.0},
+                    {"4.5", 4.5},
+                    {"5.0", 5.0},{"5", 5.0},
+                    {"5.5", 5.5},
+                    {"6.0", 6.0},{"6", 6.0},
+                    {"6.5", 6.5},
+                    {"7.0", 7.0},{"7", 7.0},
+                    {"7.5", 7.5},
+                    {"8.0", 8.0},{"8", 8.0},
+                    {"8.5", 8.5},
+                    {"9.0", 9.0},{"9", 9.0},
+                    {"9.5", 9.5},
+                    {"10.0", 10.0},{"10", 10.0},
+                    {"10.5", 10.5},
+                    {"11.0", 11.0},{"11", 11.0},
+                    {"11.5", 11.5},
+                    {"12.0", 12.0},{"12", 12.0},
+                    {"12.5", 12.5}
+                };
+                double flrTh_dbl = flrTh_dict[flrTh_str];
+                TaskDialog.Show("InsertFloor", " Floor Thickness is: " + flrTh_dbl);
                 p.Set(lvl.Id);
                 p1.Set(0);
+                //p2.Set(flrTh_dbl);
+
+                FloorType floorType = floor.FloorType;
+                floorType.GetCompoundStructure().SetLayerWidth(0, flrTh_dbl);
 
                 createFloor.Commit();
+
                 return floor;
             }
             #endregion
@@ -907,7 +947,7 @@ namespace KDS_Module_Vx
         #endregion  // End Of CopyUseDestination
 
         #region  //insert floors on levels
-        public List<Floor> insertLevelFloors(UIApplication app, Document actvDoc)
+        public List<Floor> insertLevelFloors(UIApplication app, Document actvDoc, string flrTh_str)
         {
             List<Floor> levelFloors_lst = new List<Floor>();
             FilteredElementCollector levelCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Level));
@@ -918,7 +958,7 @@ namespace KDS_Module_Vx
 
             foreach (Level lvl in levels)
             {
-                Floor floor = InsertFloor(app, lvl);
+                Floor floor = InsertFloor(app, lvl, flrTh_str);
                 //TaskDialog.Show("insertLevelFloors", "after insertFloor" + floor.Name);
                 levelFloors_lst.Add(floor);
                 //TaskDialog.Show("insertLevelFloors", "after Add(floor)");
@@ -1160,5 +1200,22 @@ namespace KDS_Module_Vx
 
 
     }  // End Of Class InsertSleeve 
+
+    #region Wr dialog class
+    public static class dialogInput
+    {
+        public static T ReadLine<T>(string message)
+        {
+            Console.WriteLine(message);
+            string input = Console.ReadLine();
+            return (T)Convert.ChangeType(input, typeof(T));
+        }
+    }
+    #endregion  End Of Dialog Class
+
+
+
+
+
 }   // End of Namespace KDS_Module
 
