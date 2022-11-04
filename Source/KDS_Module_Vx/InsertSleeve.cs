@@ -18,6 +18,44 @@ namespace KDS_Module_Vx
     public class InsertSleeve : IExternalCommand
     {
         const string _sleeveString = "KDS_Hilti-FS_CFS_CID";
+        Dictionary<string, double> flrTh_dict = new Dictionary<string, double>()
+                {
+            {"0.5", 0.5},{"1/2", 0.5},
+            {"0.75", 0.75},{"3/4", 0.75},
+            {"1.0", 1.0},{"1", 1.0},
+            {"1.25", 1.25},{"1 1/4", 1.25},
+            {"1.5", 1.5},{"1 1/2", 1.5},
+            {"1.75", 1.75},{"1 3/4", 1.75},
+            {"2.0", 2.0},{"2", 2.0},
+            {"2.25", 2.25},{"2 1/4", 2.25},
+            {"2.5", 2.5},{"2 1/2", 2.5},
+            {"2.75", 2.75},{"2 3/4", 2.75},
+            {"3.0", 3.0},{"3", 3.0},
+            {"3.25", 3.25},{"3 1/4", 3.25},
+            {"3.5", 3.5},{"3 1/2", 3.5},
+            {"3.75", 3.75},{"3 3/4", 3.75},
+            {"4.0", 4.0},{"4", 4.0},
+            {"4.25", 4.25},{"4 1/4", 4.25},
+            {"4.5", 4.5},{"4 1/2", 4.5},
+            {"4.75", 4.75},{"4 3/4", 4.75},
+            {"5.0", 5.0},{"5", 5.0},
+            {"5.5", 5.5},
+            {"6.0", 6.0},{"6", 6.0},
+            {"6.5", 6.5},
+            {"7.0", 7.0},{"7", 7.0},
+            {"7.5", 7.5},
+            {"8.0", 8.0},{"8", 8.0},
+            {"8.5", 8.5},
+            {"9.0", 9.0},{"9", 9.0},
+            {"9.5", 9.5},
+            {"10.0", 10.0},{"10", 10.0},
+            {"10.5", 10.5},
+            {"11.0", 11.0},{"11", 11.0},
+            {"11.5", 11.5},
+            {"12.0", 12.0},{"12", 12.0},
+            {"12.5", 12.5}
+                };
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             #region // Some Definitions 
@@ -42,12 +80,17 @@ namespace KDS_Module_Vx
             // Get a List of All Pipes that are Vertical and within 2" and 6" size
             FilteredElementCollector pipeCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Pipe));
             List<Pipe> pipes_lst = pipeCollector.Cast<Pipe>().ToList();
-            List<Pipe> pipes_size_lst = pipes_lst.Where(p => p.Diameter > 0.146 && p.Diameter < .667).ToList<Pipe>();
+            // Here we will get all pipes with overall size less than (0.5) 6" since after you add the 1" gap to the sleeve, you get 8", and they do not make sleeves larger than 8".
+            // Talking to draino, he says just put 2" Sleeves anyways, for pipes with over all size Less than 2".
+            // So This will be added during the creation of the Sleeves. anything less than 2" overall size will get a 2" Sleeve.
+            //List<Pipe> pipes_size_lst = pipes_lst.Where(p => p.Diameter > 0.146 && p.Diameter < .667).ToList<Pipe>();
+            List<Pipe> pipes_size_lst = pipes_lst.Where(p => p.Diameter <= 0.5).ToList<Pipe>();
+
             List<Pipe> pipes_size_slope_lst = pipes_size_lst.Where(p => IsVertical(p)).ToList<Pipe>();
             TaskDialog.Show("insertSleeve",
                 "                          All Available Pipes Count: " + pipes_lst.Count +
                //"\n        Pipes of size between 2 and 6 inches Count: " + pipes_size_lst.Count +
-               "\n            Pipes of size Less Than 6 inches Count: " + pipes_size_lst.Count +
+               "\n            Pipes of OverallSize Less Than or equal to 6 inches Count: " + pipes_size_lst.Count +
                "\n Pipes of correct size and Sloped vertically Count: " + pipes_size_slope_lst.Count +
                "\n\n\n\n\n\n\n\n\n\n\n\n\n");
             #endregion   // Get Family of Sleeves and List of all Pipes in Host Doc.
@@ -176,7 +219,7 @@ namespace KDS_Module_Vx
                 {
 
                     flrTh_str = Interaction.InputBox("Prompt", "Floor Thickness", "6.5", 800, 800);
-                    insTh_str = Interaction.InputBox("Prompt", "Insulation Thickness", "1.5", 800, 800);
+                    //insTh_str = Interaction.InputBox("Prompt", "Insulation Thickness", "1.5", 800, 800);
 
 
 
@@ -190,7 +233,7 @@ namespace KDS_Module_Vx
 
                     TaskDialog.Show("insertSleeves", " Delete Temp Floors");
                     // Delete Temp Floors in Host DOc
-                    DeleteFloors(actvDoc);
+                    //DeleteFloors(actvDoc);
                 }
 
 
@@ -200,6 +243,8 @@ namespace KDS_Module_Vx
 
             return Result.Succeeded;
         }
+
+
 
 
         #region // insertSleeves Function to place sleeve where Pipe and Level intersect --- No Floor exists here. so we need to create floors as well//
@@ -284,13 +329,43 @@ namespace KDS_Module_Vx
                                     //TaskDialog.Show("insertSleeve", " Just Disabled Warnings on Duplicate Mark Values");
 
                                     //Parameter prm = _p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
-                                    double p_diam = p.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble();
-                                    if (p_diam >= 0.41665 && p_diam <= .41668) { p_diam = 0.5; }
+                                    //double p_diam = p.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble();
+                                    //if (p_diam >= 0.41665 && p_diam <= .41668) { p_diam = 0.5; }
+
+                                    Parameter OverallSize_p = p.get_Parameter(BuiltInParameter.RBS_REFERENCE_OVERALLSIZE);  //  Gets the sum of the Pipe Diameter and the Insulation Thickness if any
+
+                                    string overallSize_st = OverallSize_p.AsValueString().Remove(OverallSize_p.AsValueString().Length - 1);
+                                    /*                                    TaskDialog.Show("insertSleeve", " \n Name: " + OverallSize_p.Definition.Name +
+                                                                             // "\n AsDouble: " + flrTh_dict[ OverallSize_p.AsValueString()] +
+                                                                             "\n AsDouble: " + OverallSize_p.AsDouble() * 100 +
+                                                                             "\n ValueString: " + overallSize_st
+                                                                             ); 
+                                    */
+
+                                    double slv_diam_dbl = (flrTh_dict[overallSize_st] +1.0)/12;   // Add 2" (.167') Gap to Sleeves (1" gap per radius) 
+
+                                    double slv_diam_dbl_adj = 0.167;
+
+                                    if (slv_diam_dbl < .16) { slv_diam_dbl_adj = 0.167; }   // For Less than 2" => 2"   
+                                    if (slv_diam_dbl > .16 && slv_diam_dbl < 0.251)   { slv_diam_dbl_adj = 0.25;  }   // For Between 2" and 3" => 3"
+                                    if (slv_diam_dbl > 0.25 && slv_diam_dbl < 0.335)  { slv_diam_dbl_adj = 0.334; }   // For Between 3" and 4" => 4"
+                                    if (slv_diam_dbl > 0.334 && slv_diam_dbl < 0.417) { slv_diam_dbl_adj = 0.416; }   // for between 4" and 5" => 5"
+                                    if (slv_diam_dbl > 0.416 && slv_diam_dbl < 0.51)  { slv_diam_dbl_adj = 0.5;   }   // for between 5" and 6" => 6"
+                                    if (slv_diam_dbl > 0.5 && slv_diam_dbl < 0.584)   { slv_diam_dbl_adj = 0.583; }   // for between 6" and 7" => 7"
+                                    if (slv_diam_dbl > 0.583 && slv_diam_dbl < 8.1/12) { 
+                                        slv_diam_dbl_adj = 8.0/12; }   // for between 7" and 8" => 8"
+
+
+
+
+
                                     //TaskDialog.Show("insertSleeve", " p_diam: " + p_diam.ToString());
 
                                     // Get the Diameter Parameter for the Sleeve THEN set it to the size from the relevant pipe.
                                     Parameter slv_diam = sleeve_famInst.LookupParameter("Size");
-                                    slv_diam.Set(p_diam + (1.0 / 6.0));
+
+                                    // Set the Diameter for the Sleeve
+                                    slv_diam.Set(slv_diam_dbl_adj);
 
                                     //TaskDialog.Show("insertSleeve", " slv_diam: " + slv_diam.AsValueString());
 
@@ -486,29 +561,9 @@ namespace KDS_Module_Vx
                 Parameter p = floor.get_Parameter(BuiltInParameter.LEVEL_PARAM);
                 Parameter p1 = floor.get_Parameter(BuiltInParameter.FLOOR_HEIGHTABOVELEVEL_PARAM);
                 Parameter p2 = floor.get_Parameter(BuiltInParameter.FLOOR_ATTR_DEFAULT_THICKNESS_PARAM);
-                Dictionary<string, double> flrTh_dict = new Dictionary<string, double>()
-                {
-                    {"4.0", 4.0},{"4", 4.0},
-                    {"4.5", 4.5},
-                    {"5.0", 5.0},{"5", 5.0},
-                    {"5.5", 5.5},
-                    {"6.0", 6.0},{"6", 6.0},
-                    {"6.5", 6.5},
-                    {"7.0", 7.0},{"7", 7.0},
-                    {"7.5", 7.5},
-                    {"8.0", 8.0},{"8", 8.0},
-                    {"8.5", 8.5},
-                    {"9.0", 9.0},{"9", 9.0},
-                    {"9.5", 9.5},
-                    {"10.0", 10.0},{"10", 10.0},
-                    {"10.5", 10.5},
-                    {"11.0", 11.0},{"11", 11.0},
-                    {"11.5", 11.5},
-                    {"12.0", 12.0},{"12", 12.0},
-                    {"12.5", 12.5}
-                };
+
                 double flrTh_dbl = flrTh_dict[flrTh_str];
-                TaskDialog.Show("InsertFloor", " Floor Thickness is: " + flrTh_dbl);
+                //TaskDialog.Show("InsertFloor", " Floor Thickness is: " + flrTh_dbl);
                 p.Set(lvl.Id);
                 p1.Set(0);
                 //p2.Set(flrTh_dbl);

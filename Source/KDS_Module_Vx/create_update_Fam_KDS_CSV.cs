@@ -458,7 +458,7 @@ namespace KDS_Module
             // Get Group Definitions.  Definitions an be: 
             //   InternalDefinitions that reside inside a Revit Document, OR
             //   ExternalDefinintions that reside in an external File...such as shared Parameters.
-            Definitions myDefinitions = myGroup_lst[0].Definitions;
+            Autodesk.Revit.DB.Definitions myDefinitions = myGroup_lst[0].Definitions;
             List<Definition> Def_lst = myDefinitions.ToList();   //    get_Item("PRL_WIDTH") as ExternalDefinition;
 
             //  Cast Definitions to ExternalDefinitions..... How did myGroup become a shared parameter. 
@@ -1089,20 +1089,45 @@ namespace KDS_Module
         } // End If get_AssociatedPipeSizeParams
         #endregion  // End Of Get Associated Family Parameters
 
+
+
+
         #region  //  Get Family Connectors and then their associated Parameters
-        public void get_connAssocParam(Document actvDoc, FamilyManager dstnctFamMngr, List<famParam_Data_class> fpData_lst, Family dstnctFam)
+        public bool get_connAssocParam(Document actvDoc, FamilyManager dstnctFamMngr, List<famParam_Data_class> fpData_lst, Family dstnctFam)
         {
             //List<Connector> famConn_lst = new List<Connector>();
             List<FamilyParameter> famParm_lst = dstnctFamMngr.GetParameters().Cast<FamilyParameter>().ToList();
-            List<Element> connElmnt_lst = new FilteredElementCollector(dstnctFam.Document).OfClass(typeof(ConnectorElement)).ToList();
+
+            List<Element> connElmnt_lst = new FilteredElementCollector(dstnctFam.Document).OfCategory(BuiltInCategory.OST_ConnectorElem).ToList();
+
+            // Find all Wall instances in the document by using category filter
+            ElementCategoryFilter filter = new ElementCategoryFilter(BuiltInCategory.OST_ConnectorElem);
+
+            // Apply the filter to the elements in the active document,
+            // Use shortcut WhereElementIsNotElementType() to find wall instances only
+            
+            FilteredElementCollector collector = new FilteredElementCollector(dstnctFam.Document);
+            IList<Element> connEls_lst = collector.WherePasses(filter).ToElements();
+            
+            String connEls_str = "\n There are " + connElmnt_lst.Count + " in ConnectorElements in " + dstnctFam.Name + " document are:\n";
+            
+            foreach (Element e in connElmnt_lst)
+            {
+                connEls_str += e.Name + "\n";
+                
+            }
+            TaskDialog.Show("Revit", connEls_str);
+
+
+
+
+
             foreach (Element el in connElmnt_lst)
             {
                 //Parameter param = el;
                 //dstnctFamMngr.GetAssociatedFamilyParameter(el);
             }
             //ParameterSet associParam_set = dstnctFam.Parameters;
-
-
             //List<FamilyParameter> associParam_lst = dstnctFamMngr.GetAssociatedFamilyParameter;
 
             string fp_ps_str = "Family Name: " + dstnctFam.Name;
@@ -1112,9 +1137,11 @@ namespace KDS_Module
             {
                 ParameterSet famAssociParam_set = fp.AssociatedParameters;
                 List<Parameter> famAssociParam_lst = fp.AssociatedParameters.Cast<Parameter>().ToList();
+
                 string Discipline = get_famParamDefTypeIdValues(fp, "Discipline", dstnctFam.Name);
                 string typeOfParameter = get_famParamDefTypeIdValues(fp, "typeOfParameter", dstnctFam.Name);
-                if (famAssociParam_lst.Count > 0 && Discipline == "piping" && typeOfParameter == "pipeSize")
+
+                if (famAssociParam_lst.Count > 0 && Discipline == "piping" && typeOfParameter == "pipeSize" && fp.Formula == null)
                 {
                     fp_int++;
                     fp_ps_str += "\n" + fp_int + "- Name: " + fp.Definition.Name;
@@ -1125,7 +1152,15 @@ namespace KDS_Module
                         fp_ps_str += "\n   -Asso Param Name: " + p.Definition.Name;
                         fp_ps_str += "\n   -Asso Param ParameterGroup: " + p.Definition.ParameterGroup;
                         fp_ps_str += "\n   -Asso Param GetDataType.TypeId: " + p.Definition.GetDataType().TypeId;
+                        foreach (Element el in connElmnt_lst)
+                        {
+                            FamilyParameter fp_conn = dstnctFamMngr.GetAssociatedFamilyParameter(p);
+                            if (fp_conn != null) { fp_ps_str += "\n- fp_conn.Definition.Name: " + fp_conn.Definition.Name; }
+                            else { fp_ps_str += "\n- fp_conn.Definition.Name: " + "fp is NULL"; }
+
+                        }
                     }
+
                     fp_ps_str += "\n- IsDeterminedByFormula: " + fp.IsDeterminedByFormula;
                     fp_ps_str += "\n- CanAssignFormula: " + fp.CanAssignFormula;
                     fp_ps_str += "\n- Formula: " + fp.Formula + "||||||";
@@ -1134,6 +1169,7 @@ namespace KDS_Module
 
                     fp_ps_str += "\n- Discipline: " + get_famParamDefTypeIdValues(fp, "Discipline", dstnctFam.Name);
                     fp_ps_str += "\n- Type Of Parameter: " + get_famParamDefTypeIdValues(fp, "typeOfParameter", dstnctFam.Name);
+
                     fp_ps_str += "\n";
                 }
             }
@@ -1163,9 +1199,7 @@ namespace KDS_Module
 
 
 
-
-            fp_ps_str += ".";
-            //foreach (ConnectorElement ce in connElmnt_lst)            {            }
+            return true;
         }  // End Of get_connAssocParam
         #endregion  // End Of Get Associated Family Parameters
 
