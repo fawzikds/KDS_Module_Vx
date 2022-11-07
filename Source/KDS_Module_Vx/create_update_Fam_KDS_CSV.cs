@@ -45,13 +45,14 @@ namespace KDS_Module
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
+
             #region // Initializations, Filters, Collections //
             List<string> paramFixedName_lst = new List<string> { "KDS_ID_tbl", "KDS_ND1", "KDS_ND2", "KDS_ND3", "KDS_ND4", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE" };
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
             List<Element> famElem_lst;
-            List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
+            //List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
             List<string> famNm_lst = new List<string>();
             List<Family> famMain_lst = new List<Family>();
             List<Family> dstnctFam_lst = new List<Family>();
@@ -74,8 +75,12 @@ namespace KDS_Module
             foreach (BuiltInCategory bic in bic_lst)
             {
                 famElem_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().ToList();
-                famSmbl_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().Select(df => df as FamilySymbol).ToList();
-                famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
+                //famSmbl_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().Select(df => df as FamilySymbol).ToList();
+                //famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
+
+               // famSmbl_lst = famElem_lst.Select(fs => fs as FamilySymbol).ToList();
+                famMain_lst = famElem_lst.Select(fs => fs as Family).ToList();  // Get Family From familySymbols
+
                 // This get a unique list of all families per Category.
                 dstnctFam_lst = famMain_lst.GroupBy(f => f.Name).Select(g => g.First()).ToList();    //how to find unique families based on family name, not family type, of given categories
 
@@ -101,7 +106,7 @@ namespace KDS_Module
             #region   // Loop thru every Category and Create the Dir Tree if it does not exist  including .rfa and its associated but empty .csv
             if (bicFam_lst.Count() > 0)
             {
-                string ftf_tds = "famSmbl_lst.Count: " + bicFam_lst.Count();
+                string ftf_tds = "bicFam_lst.Count: " + bicFam_lst.Count();
                 foreach (bicFam_strct bicfam in bicFam_lst)
                 {
                     ftf_tds += "\n Family BIC: " + bicfam.bic_str + ":: Count: " + bicfam.fam_lst.Count;
@@ -196,7 +201,7 @@ namespace KDS_Module
                             }  // uneditable families
 
                         }  // foreach bicDstnctFam
-                        TaskDialog.Show("Execute", imprt_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+                        TaskDialog.Show("Execute", imprt_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
                     }  // End Of if  bicDstnctFam.fam_lst.Count > 0
                 }  // End Of foreach bicDstnctFam in bicDstnctFam_lst
             }  // End Of if bicDstnctFam_lst.Count() > 0
@@ -497,7 +502,7 @@ namespace KDS_Module
                 List<ExternalDefinition> missingFamParams_lst = extDef_lst.Where(a => !dstnctFamExtDefParam_lst.Any(b => b.Definition.Name == a.Name)).ToList();
 
                 #region   Loop through list of exDef_lst parameters ( well i will use the new tuple so i can control the order of creating parameters, which is importan)
-                // i can eitehr do :
+                // i can either do :
                 //    - Load fpData From the KDS_EST_DB file so we can use it in 2 loops below to create or fill parameters.
                 //    - We may need to pass it as an argument here instead of calling for it by some function.
                 // OR i can:
@@ -509,12 +514,7 @@ namespace KDS_Module
                 //set_NDx_FormulaValues(dstnctFamMngr, fpData_lst, dstnctFamEdt.Title);
                 //get_AssociatedPipeSizeParams(dstnctFamMngr, fpData_lst, dstnctFamEdt.Title);
 
-                get_connAssocParam(actvDoc, dstnctFamMngr, fpData_lst, dstnctFam);
-
-                return true;
-
-
-
+                get_connAssocParam(actvDoc, dstnctFamMngr, fpData_lst, dstnctFam, dstnctFamEdt);
 
 
 
@@ -898,6 +898,10 @@ namespace KDS_Module
 
         #endregion   //  End Of Get exteernal definition parameter (shared Param) by sting Name
 
+
+
+
+
         #region   // Hardcoded Family Parameter Formulas
         public List<famParam_Data_class> Get_HardCodedFamParamFormulas()
         {
@@ -1093,42 +1097,41 @@ namespace KDS_Module
 
 
         #region  //  Get Family Connectors and then their associated Parameters
-        public bool get_connAssocParam(Document actvDoc, FamilyManager dstnctFamMngr, List<famParam_Data_class> fpData_lst, Family dstnctFam)
+        public bool get_connAssocParam(Document actvDoc, FamilyManager dstnctFamMngr, List<famParam_Data_class> fpData_lst, Family dstnctFam, Document dstnctFamEdt)
         {
+
+            Document famDoc = dstnctFam.Document;
+
             //List<Connector> famConn_lst = new List<Connector>();
             List<FamilyParameter> famParm_lst = dstnctFamMngr.GetParameters().Cast<FamilyParameter>().ToList();
 
-            List<Element> connElmnt_lst = new FilteredElementCollector(dstnctFam.Document).OfCategory(BuiltInCategory.OST_ConnectorElem).ToList();
 
-            // Find all Wall instances in the document by using category filter
-            ElementCategoryFilter filter = new ElementCategoryFilter(BuiltInCategory.OST_ConnectorElem);
 
-            // Apply the filter to the elements in the active document,
-            // Use shortcut WhereElementIsNotElementType() to find wall instances only
-            
-            FilteredElementCollector collector = new FilteredElementCollector(dstnctFam.Document);
-            IList<Element> connEls_lst = collector.WherePasses(filter).ToElements();
-            
-            String connEls_str = "\n There are " + connElmnt_lst.Count + " in ConnectorElements in " + dstnctFam.Name + " document are:\n";
-            
-            foreach (Element e in connElmnt_lst)
+
+            List<Element> connElmnt_lst = null;
+            connElmnt_lst = new FilteredElementCollector(dstnctFamEdt).OfCategory(BuiltInCategory.OST_ConnectorElem).ToElements().ToList();
+            //List<ConnectorElement> connElmnt_lst = new FilteredElementCollector(dstnctFam.Document).WherePasses(new ElementClassFilter(typeof(ConnectorElement))).Cast<ConnectorElement>().ToList();
+
+            String connEls_str = "\n There are " + connElmnt_lst.Count + " in ConnectorElements in " + dstnctFamEdt.Title + ":\n";
+            if (connElmnt_lst.Count > 0)
             {
-                connEls_str += e.Name + "\n";
-                
+                int ce_int = 0;
+                foreach (ConnectorElement ce in connElmnt_lst)
+                {
+                    // var radiusPara = ce.get_Parameter(BuiltInParameter.CONNECTOR_RADIUS);
+                    string radiusPara = get_AssociatedParametersofConnectorElement(dstnctFamEdt, ce);
+                    connEls_str += "\n- Connector- " + ce_int++ + ":";
+                    connEls_str += "\n\t- Name: " + radiusPara;
+                    //connEls_str += "\n\t- Radius: " + radiusPara.AsString();
+                }
             }
-            TaskDialog.Show("Revit", connEls_str);
+            TaskDialog.Show("get_connAssocParam", connEls_str);
+
+            return true;
 
 
 
 
-
-            foreach (Element el in connElmnt_lst)
-            {
-                //Parameter param = el;
-                //dstnctFamMngr.GetAssociatedFamilyParameter(el);
-            }
-            //ParameterSet associParam_set = dstnctFam.Parameters;
-            //List<FamilyParameter> associParam_lst = dstnctFamMngr.GetAssociatedFamilyParameter;
 
             string fp_ps_str = "Family Name: " + dstnctFam.Name;
             int fp_int = 0;
@@ -1196,16 +1199,49 @@ namespace KDS_Module
             TaskDialog.Show("get_connAssocParam", fp_ps_str);
 
 
-
-
-
             return true;
         }  // End Of get_connAssocParam
         #endregion  // End Of Get Associated Family Parameters
 
 
 
-        #region   // Get Family Parameter Definitions for Discipline and "Tyoe Of Parameter".. Not In use since Associate parameters are better for implementation now.
+
+
+
+        #region   // Get Associated Parameter for a given connectorElement
+        public string get_AssociatedParametersofConnectorElement(Document dstnctFamDocEdt, ConnectorElement connectorElement)
+        {
+            try
+            {
+                if (connectorElement != null)
+                {
+                    var radiusPara = connectorElement.get_Parameter(BuiltInParameter.CONNECTOR_RADIUS);
+                    foreach (FamilyParameter familyPara in dstnctFamDocEdt.FamilyManager.Parameters)
+                    {
+                        foreach (Parameter associatedPara in familyPara.AssociatedParameters)
+                        {
+                            if (radiusPara.Id == associatedPara.Id && associatedPara.Element.Id == connectorElement.Id)
+                            {
+                                //associate parameter found
+                                return familyPara.Definition.Name;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Autodesk.Revit.Exceptions.OperationCanceledException)
+            {
+            }
+            return null;
+        }
+        #endregion  // End Of Get Associated Parameter for a given connectorElement
+
+
+
+
+
+
+        #region   // Get Family Parameter Definitions for Discipline and "Type Of Parameter".. Not In use since Associate parameters are better for implementation now.
         // this is just to make code more readable... it is just splitting strings, since i cannot find a paramter that holds this info already
         // and i did not want to put all these splits inside a code above.
         public string get_famParamDefTypeIdValues(FamilyParameter tmpParam, string Id_str, string dstnctFam_Nm)

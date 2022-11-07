@@ -9,3 +9,5 @@ C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS
 C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.csproj.CopyComplete
 C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.dll
 C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.pdb
+C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.csproj.GenerateResource.cache
+C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.insertSleeve_frm_CL.resources

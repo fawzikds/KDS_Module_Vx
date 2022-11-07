@@ -2,11 +2,14 @@
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+//using DocumentFormat.OpenXml.Spreadsheet;
+using KDS_Module;
 using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Windows.Forms;
 
 
@@ -76,6 +79,16 @@ namespace KDS_Module_Vx
 
             string flrTh_str = null;
             string insTh_str = null;
+
+
+            // Third Itiration - use Modeless form
+            insertSleeve_frm_CL insertSleeve_frm = new insertSleeve_frm_CL();
+            insertSleeve_frm.doc = uiDoc.Document;   //  insertSleeve_frm_CL.doc is declared in insertSleeve_frm_CL.cs
+            insertSleeve_frm.Show();
+
+            return Result.Succeeded;
+
+
 
             // Get a List of All Pipes that are Vertical and within 2" and 6" size
             FilteredElementCollector pipeCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Pipe));
@@ -243,7 +256,6 @@ namespace KDS_Module_Vx
 
             return Result.Succeeded;
         }
-
 
 
 
