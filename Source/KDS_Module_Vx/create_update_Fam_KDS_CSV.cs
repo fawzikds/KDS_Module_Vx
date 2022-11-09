@@ -52,7 +52,7 @@ namespace KDS_Module
             Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
             List<Element> famElem_lst;
-            //List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
+            List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
             List<string> famNm_lst = new List<string>();
             List<Family> famMain_lst = new List<Family>();
             List<Family> dstnctFam_lst = new List<Family>();
@@ -75,11 +75,11 @@ namespace KDS_Module
             foreach (BuiltInCategory bic in bic_lst)
             {
                 famElem_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().ToList();
-                //famSmbl_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().Select(df => df as FamilySymbol).ToList();
-                //famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
+                famSmbl_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().Select(df => df as FamilySymbol).ToList();
+                famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
 
-               // famSmbl_lst = famElem_lst.Select(fs => fs as FamilySymbol).ToList();
-                famMain_lst = famElem_lst.Select(fs => fs as Family).ToList();  // Get Family From familySymbols
+                // famSmbl_lst = famElem_lst.Select(fs => fs as FamilySymbol).ToList();
+                //famMain_lst = famElem_lst.Select(fs => fs as Family).ToList();  // Get Family From familySymbols
 
                 // This get a unique list of all families per Category.
                 dstnctFam_lst = famMain_lst.GroupBy(f => f.Name).Select(g => g.First()).ToList();    //how to find unique families based on family name, not family type, of given categories
@@ -165,11 +165,13 @@ namespace KDS_Module
                                 // Get FSTM (Family Size Table Manager)
                                 imprt_tds += "\n " + ftf_cnt + "- " + dstnctFam.Name + ":: Errors: " + ImportSizeLookUpTable(actvDoc, bicDstnctFam.bic_str, dstnctFam, dstnctFamEdt, dstnctFamPath, csvFilePath);
 
-                                Create_sharedParameter_inFamily(actvDoc, bicDstnctFam.bic_str, dstnctFam, dstnctFamEdt, sharedParameter_fn, dstnctFamPath);
 
+                                // This is a MAJOR function, i left it within this loop and not sepreate it out, since it is easier to load and save family right after i changed Things.
+                                Create_sharedParameter_inFamily(actvDoc, bicDstnctFam.bic_str, dstnctFamEdt, sharedParameter_fn, dstnctFamPath);
+                                ////////////////////////////////////////////////////////////
 
                                 dstnctFamEdt.LoadFamily(actvDoc, new familyLoadOptions()); // here the update begins
-                                                                                           //TaskDialog.Show("ImportSizeLookUpTable", "after  LoadFamily ");
+                                //TaskDialog.Show("ImportSizeLookUpTable", "after  LoadFamily ");
 
                                 // Save family
                                 SaveAsOptions saveoptions = new SaveAsOptions();
@@ -210,6 +212,8 @@ namespace KDS_Module
 
             return Result.Succeeded;
         }
+
+        /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
         #region   // Create and Fill Families in Dir tree  with the .rfa and the .csv (csv will be empty now)
@@ -429,16 +433,17 @@ namespace KDS_Module
 
 
         #region  // Create_sharedParameter_inFamily 
-        public bool Create_sharedParameter_inFamily(Document actvDoc, string famBIC_Nm, Family dstnctFam, Document dstnctFamEdt, string sharedParameter_fn, string dstnctFamPath)
+        public bool Create_sharedParameter_inFamily(Document actvDoc, string famBIC_Nm, Document dstnctFamEdt, string sharedParameter_fn, string dstnctFamPath)
         {
             //TaskDialog.Show("test", "current family: " + family.Name);
             /// Hard Coded Formulas ///
             List<string> paramFixedName_lst = new List<string> { "KDS_ID_tbl", "KDS_ND1", "KDS_ND2", "KDS_ND3", "KDS_ND4", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE" };
 
-            /// Hard Coded Formulas 
+            /// Hard Coded Formulas: Set a generic values for all parameters except for the lookuptable and for the NDs
             List<famParam_Data_class> fpData_lst = new List<famParam_Data_class>();
             fpData_lst = Get_HardCodedFamParamFormulas();
-            // Debug - List all  names of fpData_lst returned from Get_HardCodedFamParamFormulas-- Confirmed
+
+            #region // Debug - List all  names of fpData_lst returned from Get_HardCodedFamParamFormulas-- Confirmed
             /*string fpData_Name_str = "list of all fpData_Names\n";
 
             foreach (famParam_Data_class fpD in fpData_lst)
@@ -446,23 +451,23 @@ namespace KDS_Module
                 fpData_Name_str += "\n - fpData Name: " + fpD.Name;
             }
             TaskDialog.Show("Create_sharedParameter_inFamily", fpData_Name_str);*/
+            #endregion   // End Of Debug - List all  names of fpData_lst returned from Get_HardCodedFamParamFormulas-- Confirmed
 
+            #region Get a customSorted list of All External Definition in Shared Parametr File
+            // Data Class to hold the different pieces of a parameter, Name, type, default Value and Formula
             famParam_Data_class fpData = new famParam_Data_class();
 
-            //  TaskDialog.Show("Create_sharedParameter_inFamily", "inside Create_sharedParameter_inFamily");
-            //Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
-
-            // Set Filename for SharedParameters
+            // Set Filename for SharedParameters and open file
             actvDoc.Application.SharedParametersFilename = sharedParameter_fn;
             DefinitionFile defFile = actvDoc.Application.OpenSharedParameterFile();
 
-            // Get List of Groups
+            // Get List of Groups in SharedParameter File.
             DefinitionGroups myGroups = defFile.Groups;
             IList<DefinitionGroup> myGroup_lst = myGroups.ToList();
 
             // Get Group Definitions.  Definitions an be: 
             //   InternalDefinitions that reside inside a Revit Document, OR
-            //   ExternalDefinintions that reside in an external File...such as shared Parameters.
+            //   ExternalDefinintions that reside in an external File...such as shared Parameters. we want these.
             Autodesk.Revit.DB.Definitions myDefinitions = myGroup_lst[0].Definitions;
             List<Definition> Def_lst = myDefinitions.ToList();   //    get_Item("PRL_WIDTH") as ExternalDefinition;
 
@@ -471,223 +476,203 @@ namespace KDS_Module
 
             // Sort The list of Shared Parameter by the my paramFixedName_lst since we oder is important in when i create the parameters.
             List<ExternalDefinition> extDef_sorted_lst = sort_listByAnother(extDef_lst, paramFixedName_lst);
+            #endregion // End Of Get a customSorted list of All External Definition in Shared Parametr File
 
 
-            //string file = sharedParameter_fn; // Defined global of the shared Parameters file name.
-            //TaskDialog.Show("Create_sharedParameter_inFamily", "sharedParameter File Name: " + file);
+            // Get  Family Manager 
+            FamilyManager dstnctFamMngr = dstnctFamEdt.FamilyManager;
 
-            try
+            // Get List of all ConnectoElements in family.
+            List<Element> connElmnt_lst = new FilteredElementCollector(dstnctFamEdt).OfCategory(BuiltInCategory.OST_ConnectorElem).ToElements().ToList();
+
+            // Get List of all Parameters in family.
+            List<FamilyParameter> dstnctFamParam_lst = dstnctFamMngr.GetParameters().ToList<FamilyParameter>();
+
+            // Find All external Definition Shared Parameters that are already in the list of Family parameters
+            List<FamilyParameter> dstnctFamExtDefParam_lst = dstnctFamParam_lst.Where(a => extDef_lst.Any(b => b.Name == a.Definition.Name)).ToList();
+
+            // Find all External Definition Shared Parameters that are missing from the List of Family Parmaters
+            List<ExternalDefinition> missingFamParams_lst = extDef_lst.Where(a => !dstnctFamExtDefParam_lst.Any(b => b.Definition.Name == a.Name)).ToList();
+
+            // Map ND parameter Formulas to the connectorElments' Associated Parameter Name.
+
+
+            #region   Loop through list of exDef_lst parameters ( well i will use the new tuple so i can control the order of creating parameters, which is important)
+            // i can either do :
+            //    - Load fpData From the KDS_EST_DB file so we can use it in 2 loops below to create or fill parameters.
+            //    - We may need to pass it as an argument here instead of calling for it by some function.
+            // OR i can:
+            //    - Loop through list of exDef_lst parameters,  and try to create it. if success, if not still good. ( i don't think there is an internal isExist)
+            //    - Set the values/ formulas of each.... 
+            //    - This is better, since i have to create things per some order... KDS_ID_tbl, then the other parameters, prefereably ND1 thru ND4 are in that order.
+
+
+            #region // LOOP Thru all extDef, and Delete old nonshared parameter with same name, and to create new shared parameters as from extDef.
+            string foundfamParam_str = " List Of All Found Parameters For: " + dstnctFamEdt.Title + "\n";
+            int foundfamParam_int = 0;
+            string missingfamParam_str = " List Of All Missing Parameters For: " + dstnctFamEdt.Title + "\n";
+            int missingfamParam_int = 0;
+
+            foreach (ExternalDefinition extDef in extDef_sorted_lst)
             {
-                // Get  Family Manager 
-                FamilyManager dstnctFamMngr = dstnctFamEdt.FamilyManager;
-
-                /* MEPModel mepModel = dstnctFamInst.MEPModel;
-                 //3. Get connector set of MEPModel
-                 ConnectorSet connectorSet = mepModel.ConnectorManager.Connectors;
-                 //4. Initialise empty list of connectors
-                 List<Connector> connectorList = new List<Connector>();
-                 //5. Loop through connector set and add to list
-                 foreach (Connector connector in connectorSet)
-                 {
-                     connectorList.Add(connector);
-                 }*/
-
-                // Get List of all Parameters in family.
-                List<FamilyParameter> dstnctFamParam_lst = dstnctFamMngr.GetParameters().ToList<FamilyParameter>();
-
-                // Find All external Definition Shared Parameters that are already in the list of Family parameters
-                List<FamilyParameter> dstnctFamExtDefParam_lst = dstnctFamParam_lst.Where(a => extDef_lst.Any(b => b.Name == a.Definition.Name)).ToList();
-
-                // Find all External Definition Shared Parameters that are missing from the List of Family Parmaters
-                List<ExternalDefinition> missingFamParams_lst = extDef_lst.Where(a => !dstnctFamExtDefParam_lst.Any(b => b.Definition.Name == a.Name)).ToList();
-
-                #region   Loop through list of exDef_lst parameters ( well i will use the new tuple so i can control the order of creating parameters, which is importan)
-                // i can either do :
-                //    - Load fpData From the KDS_EST_DB file so we can use it in 2 loops below to create or fill parameters.
-                //    - We may need to pass it as an argument here instead of calling for it by some function.
-                // OR i can:
-                //    - Loop through list of exDef_lst parameters,  and try to create it. if success, if not still good. ( i don't think there is an internal isExist)
-                //    - Set the values/ formulas of each.... 
-                //    - This is better, since i have to create things per some order... KDS_ID_tbl, then the other parameters, prefereably ND1 thru ND4 are in that order.
-
-
-                //set_NDx_FormulaValues(dstnctFamMngr, fpData_lst, dstnctFamEdt.Title);
-                //get_AssociatedPipeSizeParams(dstnctFamMngr, fpData_lst, dstnctFamEdt.Title);
-
-                get_connAssocParam(actvDoc, dstnctFamMngr, fpData_lst, dstnctFam, dstnctFamEdt);
-
-
-
-
-
-                string foundfamParam_str = " List Of All Found Parameters For: " + dstnctFam.Name + "\n";
-                int foundfamParam_int = 0;
-                string missingfamParam_str = " List Of All Missing Parameters For: " + dstnctFam.Name + "\n";
-                int missingfamParam_int = 0;
-
-
-                foreach (ExternalDefinition extDef in extDef_sorted_lst)
-
-
-                //foreach (ExternalDefinition extDef in extDef_lst)
+                if (extDef.Name != null)
                 {
-                    Transaction cr_set_param_trx = new Transaction(dstnctFamEdt, "Create/Set Values and Formulas");
-                    cr_set_param_trx.Start();
+                    FamilyParameter tmpParam = dstnctFamMngr.get_Parameter(extDef.Name);
 
-                    try
+                    // If it Exists but not a "Shared Parameter"  recreate as shared. since i am using Shared parameters and older non-shared params need to go.
+                    if (tmpParam != null)
                     {
-                        //ExternalDefinition extDef = fxdNm_extDef_lst
-                        FamilyParameter tmpParam = null;
-                        //List<FamilyParameter> tmpParam_lst = dstnctFamMngr.GetParameters().Cast<FamilyParameter>().ToList();
-                        string tmp_nm = "Main Nominal Radius";
-                        //tmpParam = getParmeter_byName(dstnctFamMngr, extDef.Name);
-                        tmpParam = getParmeter_byName(dstnctFamMngr, tmp_nm);
-
-
-
-                        TaskDialog.Show("Create_sharedParameter_inFamily",
-
-                            "\n -param.IsShared:               " + tmpParam.IsShared +
-                            "\n -param.IsInstance:             " + tmpParam.IsInstance +
-                            "\n -param.GetType:                " + tmpParam.GetType() +
-                            "\n -param.GetType.ToString:       " + tmpParam.GetType().ToString() +
-                            "\n -param.GetUnitTypeId:          " + tmpParam.GetUnitTypeId() +
-                            "\n -param.GetUnitTypeId.ToString: " + tmpParam.GetUnitTypeId().ToString() +
-                            "\n -param.CanAssignFormula:       " + tmpParam.CanAssignFormula +
-                            "\n -param.Formula:                " + tmpParam.Formula +
-                            "\n -param.GetHashCode:            " + tmpParam.GetHashCode() +
-                            "\n -param.GetHashCode.ToString:   " + tmpParam.GetHashCode().ToString() +
-
-                            // "\n -param.GUID:                   " + tmpParam.GUID +
-                            "\n -param.Id:                     " + tmpParam.Id +
-                            "\n -param.IsDeterminedByFormula:  " + tmpParam.IsDeterminedByFormula +
-                            "\n -param.IsInstance:             " + tmpParam.IsInstance +
-                            "\n -param.IsReadOnly:             " + tmpParam.IsReadOnly +
-                            "\n -param.IsReporting:            " + tmpParam.IsReporting +
-                            "\n -param.IsShared:               " + tmpParam.IsShared +
-                            "\n -param.StorageType:            " + tmpParam.StorageType +
-                            "\n -param.UserModifiable:         " + tmpParam.UserModifiable +
-                            "\n------------------------------------------------------------------------------------------------------" +
-                            "\n --param.def.Name :                    " + tmpParam.Definition.Name +
-                             "\n --param.def.GetType:                 " + tmpParam.Definition.GetType() +
-                            "\n --param.def.GetType.ToString:         " + tmpParam.Definition.GetType().ToString() +
-
-                            "\n --param.def.GetDataType:              " + tmpParam.Definition.GetDataType() +
-                            "\n --param.def.GetDataType.ToString:     " + tmpParam.Definition.GetDataType().ToString() +
-
-                            "\n --param.def.GetDataType.GetType:              " + tmpParam.Definition.GetDataType().GetType() +
-                            "\n --param.def.GetDataType.GetType.ToString:     " + tmpParam.Definition.GetDataType().GetType().ToString() +
-                            "\n --param.def.GetDataType.GetType.ToString:     " + tmpParam.Definition.GetDataType().GetType().Name +
-
-                            "\n --param.def.ParameterGroup:           " + tmpParam.Definition.ParameterGroup +
-
-                            "\n --param.def.GetGroupTypeId:           " + tmpParam.Definition.GetGroupTypeId() +
-                            "\n --param.def.GetGroupTypeId.ToString:  " + tmpParam.Definition.GetGroupTypeId().ToString() +
-
-                            "\n --param.def.GetSpecTypeId:            " + tmpParam.Definition.GetSpecTypeId() +
-                            "\n --param.def.GetSpecTypeId.ToString:   " + tmpParam.Definition.GetSpecTypeId().ToString() +
-
-                            "\n --param.def.ParameterType:            " + tmpParam.Definition.ParameterType +
-
-
-
-                            "\n --param.def.GetHashCode.ToString:     " + tmpParam.Definition.GetHashCode() +
-                            "\n --param.def.GetHashCode.ToString:     " + tmpParam.Definition.GetHashCode().ToString() +
-
-                            "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
-
-                       );
-
-                        string tmpParamTypeId = tmpParam.Definition.GetDataType().TypeId;
-                        string[] tmpParamTypeId_lst = tmpParamTypeId.Split(':');
-
-                        string tmpStr = "";
-                        foreach (string str in tmpParamTypeId_lst)
+                        Transaction del_param_trx = new Transaction(dstnctFamEdt, "Delete Parameter");
+                        del_param_trx.Start();
+                        try
                         {
-                            tmpStr += "\n --param.def.GetDataType.TypeId.Something:            " + str;
-                        }
-                        tmpStr += "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n";
-
-                        TaskDialog.Show("Create_sharedParameter_inFamily",
-                            "Full tmpParam.Definition.GetDataType.TypeID:  \n " + tmpParam.Definition.GetDataType().TypeId + "\n" +
-                            //"\n --param.def.Discipline:       " + tmpParam.Definition.GetDataType().TypeId.Split(':')[0].Split('.').Last() +
-                            //"\n --param.def.TypeOfParameter:  " + tmpParam.Definition.GetDataType().TypeId.Split(':')[1].Split('-')[0] +
-                            //  "\n --param.def.Discipline:          " + get_famParamDefTypeIdValues(tmpParam, "Discipline", dstnctFam.Name) +
-                            //  "\n --param.def.TypeOfPrameter:       " + get_famParamDefTypeIdValues(tmpParam, "typeOfParameter", dstnctFam.Name) +
-                            "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
-                          );
-
-
-
-                        // If it Exists but not a "Shared Parameter"  recreate as shared. since i am using Shared paramewters and older non-shared params need to go.
-                        if (tmpParam != null && !tmpParam.IsShared)
-                        {
-                            TaskDialog.Show("Create_sharedParameter_inFamily", "Removing Param:" + "\n- Family Name: " + dstnctFam.Name + "\n- Param Name: " + extDef.Name);
                             dstnctFamMngr.RemoveParameter(tmpParam);
-                            TaskDialog.Show("Create_sharedParameter_inFamily", "Removed Param:" + "\n- Family Name: " + dstnctFam.Name + "\n- Param Name: " + extDef.Name);
-                            TaskDialog.Show("Create_sharedParameter_inFamily", "creating " + extDef.Name + " in :\n" + dstnctFam.Name);
-                            tmpParam = dstnctFamMngr.AddParameter(extDef, BuiltInParameterGroup.PG_IDENTITY_DATA, true);
-                            TaskDialog.Show("Create_sharedParameter_inFamily", "created : " + tmpParam.Definition.Name);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Delete Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title + "\n Exception: " + ex);
                         }
 
-                        if (tmpParam == null)  // If parameter DOES NOT  Exists  ... Create it... Then Set Values
-                        {
-                            missingfamParam_int++;
-                            missingfamParam_str += missingfamParam_int + "- Missing Param Name: " + extDef.Name + "\n";
-                            TaskDialog.Show("Create_sharedParameter_inFamily", "creating " + extDef.Name + " in :\n" + dstnctFam.Name);
-                            tmpParam = dstnctFamMngr.AddParameter(extDef, BuiltInParameterGroup.PG_IDENTITY_DATA, true);
-                            TaskDialog.Show("Create_sharedParameter_inFamily", "created : " + tmpParam.Definition.Name);
-                        }
-                        else   // If parameter Exists
-                        {
-                            foundfamParam_int++;
-                            foundfamParam_str += foundfamParam_int + "- Param Name: " + extDef.Name + "\n";
+                        del_param_trx.Commit();
+                        del_param_trx.Dispose();
 
+                        Transaction cr_param_trx = new Transaction(dstnctFamEdt, "Create Parameter");
+                        cr_param_trx.Start();
+                        try
+                        {
+                            tmpParam = dstnctFamMngr.AddParameter(extDef, BuiltInParameterGroup.PG_IDENTITY_DATA, true);
+                            //TaskDialog.Show("Create_sharedParameter_inFamily", "Re-Created : " + tmpParam.Definition.Name);
                         }
-                        if (tmpParam.CanAssignFormula)   // Check and see if parameter can be assigned a value.
+                        catch (System.Exception ex)
+                        {
+                            TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Create Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title + "\n Exception: " + ex);
+                        }
+
+                        cr_param_trx.Commit();
+                        cr_param_trx.Dispose();
+
+                        foundfamParam_int++;
+                        foundfamParam_str += foundfamParam_int + "- Param Name: " + extDef.Name + "\n";
+                    }
+                    // If parameter DOES NOT  Exists  ... Create it...
+                    if (tmpParam == null)
+                    {
+                        Transaction cr1_param_trx = new Transaction(dstnctFamEdt, "Create Values and Formulas");
+                        cr1_param_trx.Start();
+                        try
+                        {
+                            tmpParam = dstnctFamMngr.AddParameter(extDef, BuiltInParameterGroup.PG_IDENTITY_DATA, true);
+                            //TaskDialog.Show("Create_sharedParameter_inFamily", "Re-Created : " + tmpParam.Definition.Name);
+                        }
+                        catch (System.Exception ex)
+                        {
+                            TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Create Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title + "\n Exception: " + ex);
+                        }
+
+                        cr1_param_trx.Commit();
+                        cr1_param_trx.Dispose();
+                        missingfamParam_int++;
+                        missingfamParam_str += missingfamParam_int + "- Missing Param Name: " + extDef.Name + "\n";
+                        //TaskDialog.Show("Create_sharedParameter_inFamily", "created : " + tmpParam.Definition.Name);
+                    }
+                }  // if extDef is not null
+            }  // foreach dstnctFamExtDefParam
+               //TaskDialog.Show("Create_sharedParameter_inFamily", foundfamParam_str);
+               //TaskDialog.Show("missingFamParams", missingfamParam_str);
+            #endregion // End Of LOOP Thru all extDef, and Delete old nonshared parameter with same name, and to create new shared parameters as from extDef.
+
+
+
+
+            #region// LOOP thru extDef parameters and add parmeter formulas 
+
+            string assignedfamParam_str = " List Of All Found Parameters For: " + dstnctFamEdt.Title + "\n";
+            int assignedfamParam_int = 0;
+            string notAssignedfamParam_str = " List Of All Missing Parameters For: " + dstnctFamEdt.Title + "\n";
+            int notAssignedfamParam_int = 0;
+
+            foreach (ExternalDefinition extDef in extDef_sorted_lst)
+            {
+                if (extDef.Name != null)
+                {
+                    FamilyParameter tmpParam = dstnctFamMngr.get_Parameter(extDef.Name);
+
+                    // If it Exists but not a "Shared Parameter"  recreate as shared. since i am using Shared parameters and older non-shared params need to go.
+                    if (tmpParam != null && tmpParam.CanAssignFormula)
+                    {
+                        Transaction set_param_trx = new Transaction(dstnctFamEdt, "Delete Parameter");
+                        set_param_trx.Start();
+                        try
                         {
                             string formula_str = "";
                             string vlu_str = "";
 
                             if (extDef.Name.Contains("_ND"))
                             {
-                                formula_str = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, "");
-                                TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFam.Name + "\n- Formula Value: " + formula_str + "     -||");
+                                //name = p?.Spouse?.FirstName;
+                                string ce_index_str = (extDef?.Name?.Length != 0 ? extDef.Name[extDef.Name.Length - 1] : '0').ToString();
+                                int ce_index = Int32.Parse(ce_index_str);
+                                //int ce_index = extDef.Name[extDef.Name.Length - 1];
+                                formula_str = get_AssociatedParametersofConnectorElement(dstnctFamEdt, connElmnt_lst[ce_index-1] as ConnectorElement);
+                                if (formula_str == null)
+                                {
+                                    //formula_str = "0";
+                                }
+                                else
+                                {
+                                    //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
 
-                                dstnctFamMngr.SetFormula(tmpParam, formula_str);
+                                    dstnctFamMngr.SetFormula(tmpParam, formula_str);
+                                }
                             }
-                            if (extDef.Name == "KDS_ID_tbl")
+                            else if (extDef.Name == "KDS_ID_tbl")
                             {
-                                vlu_str = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, "");
-                                TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFam.Name + "\n- Value: " + vlu_str + "     -||");
+                                vlu_str = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFamEdt.Title, "");
+                                //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Value: " + vlu_str + "     -||");
                                 dstnctFamMngr.Set(tmpParam, vlu_str);
                             }
                             else
                             {
                                 formula_str = get_famParam_Data_item(fpData_lst, extDef.Name).formula;
-                                TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFam.Name + "\n- Formula Value: " + formula_str + "     -||");
+                                //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
 
                                 dstnctFamMngr.SetFormula(tmpParam, formula_str);
                             }
-                        }// if fampar.CanAssignFormula
-                    }
-                    catch (System.Exception ex)
+
+                        }
+                        catch (System.Exception ex)
+                        {
+                            TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Delete Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title + "\n Exception: " + ex);
+                        }
+
+                        set_param_trx.Commit();
+                        set_param_trx.Dispose();
+
+                        foundfamParam_int++;
+                        foundfamParam_str += foundfamParam_int + "- Param Name: " + extDef.Name + "\n";
+                    }// if fampar.CanAssignFormula
+
+                    // If parameter DOES NOT  Exists  ... Create it...
+                    else
                     {
-                        TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFam.Name + "\n Exception: " + ex);
+                        TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Create Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title);
+
+                        missingfamParam_int++;
+                        missingfamParam_str += missingfamParam_int + "- Missing Param Name: " + extDef.Name + "\n";
+                        //TaskDialog.Show("Create_sharedParameter_inFamily", "created : " + tmpParam.Definition.Name);
                     }
-                    cr_set_param_trx.Commit();
-                    cr_set_param_trx.Dispose();
-                }  // foreach dstnctFamExtDefParam
-                TaskDialog.Show("Create_sharedParameter_inFamily", foundfamParam_str);
-                TaskDialog.Show("missingFamParams", missingfamParam_str);
+                }  // if extDef is not null
 
-                #endregion // End Of Loop through List of  of Found Family Parameters and set them to new Values
+            }  // foreach dstnctFamExtDefParam
+            TaskDialog.Show("Create_sharedParameter_inFamily", assignedfamParam_str);
+            TaskDialog.Show("missingFamParams", notAssignedfamParam_str);
 
-            }  // End of try
-            catch (System.Exception ex)
-            {
-                TaskDialog.Show("create_sharedPamaeter_in_Family", "Exception: " + ex);
-            }
+            #endregion// End Of LOOP thru extDef parameters and add parmeter formulas 
+
+
+            #endregion // End Of Loop through List of  of Found Family Parameters and set them to new Values
+
+
             return true;
         }  // End of create_sharedPamaeter_in_Family
         #endregion  // End Of Create_sharedParameter_inFamily 
@@ -1047,164 +1032,8 @@ namespace KDS_Module
         // - get a list of all connectors in family
         // - get the name of their associated Parameter
         // - assign one KDS_NDx to each of these associiated connectors. 
-        public void set_NDx_FormulaValues(FamilyManager dstnctFamMngr, List<famParam_Data_class> fpData_lst, string dstnctFam_Nm)
-        {
-            List<FamilyParameter> famParm_lst = dstnctFamMngr.GetParameters().Cast<FamilyParameter>().ToList();
-            List<FamilyParameter> famParm_PipeSize_lst = famParm_lst.Where(fp_ps => get_famParamDefTypeIdValues(fp_ps, "typeOfParameter", dstnctFam_Nm) == "pipeSize").ToList();
 
-            TaskDialog.Show("set_NDx_FormulaValues", "famParm_PipeSize_lst Count is: " + famParm_PipeSize_lst.Count);
-
-            string fp_ps_str = "Family Name: " + dstnctFam_Nm;
-            foreach (FamilyParameter fp in famParm_PipeSize_lst)
-            {
-                fp_ps_str += "\n- Name: " + fp.Definition.Name;
-            }
-            TaskDialog.Show("set_NDx_FormulaValues", fp_ps_str);
-
-
-        }  //  End Of set_NDx_FormulaValues
         #endregion  // Put it new Values for ND1 ND2, N3, ND4 based on Pipe Size Parameters in the current Family.
-
-
-        #region  // Get Associated Family Parameters
-        public void get_AssociatedPipeSizeParams(FamilyManager dstnctFamMngr, List<famParam_Data_class> fpData_lst, string dstnctFam_Nm)
-        {
-            List<FamilyParameter> famParm_lst = dstnctFamMngr.GetParameters().Cast<FamilyParameter>().ToList();
-            /*List<FamilyParameter> famParm_PipeSize_lst = famParm_lst
-                .Where(fp_as => FamilyParameterSet.)
-                .Where(fp_ps => get_famParamDefTypeIdValues(fp_ps, "typeOfParameter", dstnctFam_Nm) == "PipeSize")
-                .ToList();*/
-
-            string fp_ps_str = "Family Name: " + dstnctFam_Nm;
-            int fp_int = 0;
-
-            foreach (FamilyParameter fp in famParm_lst)
-            {
-                fp_int++;
-                fp_ps_str += "\n" + fp_int + "- Name: " + fp.Definition.Name +
-                    "\n -fp.AssociatedParameters: ";
-                foreach (Autodesk.Revit.DB.Parameter p in fp.AssociatedParameters) { fp_ps_str += "\n   -" + p.Definition.Name; }
-
-                fp_ps_str += "\n- Discipline: " + get_famParamDefTypeIdValues(fp, "Discipline", dstnctFam_Nm) +
-                "\n- Type Of Parameter: " + get_famParamDefTypeIdValues(fp, "typeOfParameter", dstnctFam_Nm) +
-                "\n";
-            }
-            TaskDialog.Show("get_AssociatedPipeSizeParams", fp_ps_str);
-        } // End If get_AssociatedPipeSizeParams
-        #endregion  // End Of Get Associated Family Parameters
-
-
-
-
-        #region  //  Get Family Connectors and then their associated Parameters
-        public bool get_connAssocParam(Document actvDoc, FamilyManager dstnctFamMngr, List<famParam_Data_class> fpData_lst, Family dstnctFam, Document dstnctFamEdt)
-        {
-
-            Document famDoc = dstnctFam.Document;
-
-            //List<Connector> famConn_lst = new List<Connector>();
-            List<FamilyParameter> famParm_lst = dstnctFamMngr.GetParameters().Cast<FamilyParameter>().ToList();
-
-
-
-
-            List<Element> connElmnt_lst = null;
-            connElmnt_lst = new FilteredElementCollector(dstnctFamEdt).OfCategory(BuiltInCategory.OST_ConnectorElem).ToElements().ToList();
-            //List<ConnectorElement> connElmnt_lst = new FilteredElementCollector(dstnctFam.Document).WherePasses(new ElementClassFilter(typeof(ConnectorElement))).Cast<ConnectorElement>().ToList();
-
-            String connEls_str = "\n There are " + connElmnt_lst.Count + " in ConnectorElements in " + dstnctFamEdt.Title + ":\n";
-            if (connElmnt_lst.Count > 0)
-            {
-                int ce_int = 0;
-                foreach (ConnectorElement ce in connElmnt_lst)
-                {
-                    // var radiusPara = ce.get_Parameter(BuiltInParameter.CONNECTOR_RADIUS);
-                    string radiusPara = get_AssociatedParametersofConnectorElement(dstnctFamEdt, ce);
-                    connEls_str += "\n- Connector- " + ce_int++ + ":";
-                    connEls_str += "\n\t- Name: " + radiusPara;
-                    //connEls_str += "\n\t- Radius: " + radiusPara.AsString();
-                }
-            }
-            TaskDialog.Show("get_connAssocParam", connEls_str);
-
-            return true;
-
-
-
-
-
-            string fp_ps_str = "Family Name: " + dstnctFam.Name;
-            int fp_int = 0;
-
-            foreach (FamilyParameter fp in famParm_lst)
-            {
-                ParameterSet famAssociParam_set = fp.AssociatedParameters;
-                List<Parameter> famAssociParam_lst = fp.AssociatedParameters.Cast<Parameter>().ToList();
-
-                string Discipline = get_famParamDefTypeIdValues(fp, "Discipline", dstnctFam.Name);
-                string typeOfParameter = get_famParamDefTypeIdValues(fp, "typeOfParameter", dstnctFam.Name);
-
-                if (famAssociParam_lst.Count > 0 && Discipline == "piping" && typeOfParameter == "pipeSize" && fp.Formula == null)
-                {
-                    fp_int++;
-                    fp_ps_str += "\n" + fp_int + "- Name: " + fp.Definition.Name;
-                    fp_ps_str += "\n - there are " + famAssociParam_lst.Count + " fp.AssociatedParameters: ";
-
-                    foreach (Autodesk.Revit.DB.Parameter p in famAssociParam_lst)
-                    {
-                        fp_ps_str += "\n   -Asso Param Name: " + p.Definition.Name;
-                        fp_ps_str += "\n   -Asso Param ParameterGroup: " + p.Definition.ParameterGroup;
-                        fp_ps_str += "\n   -Asso Param GetDataType.TypeId: " + p.Definition.GetDataType().TypeId;
-                        foreach (Element el in connElmnt_lst)
-                        {
-                            FamilyParameter fp_conn = dstnctFamMngr.GetAssociatedFamilyParameter(p);
-                            if (fp_conn != null) { fp_ps_str += "\n- fp_conn.Definition.Name: " + fp_conn.Definition.Name; }
-                            else { fp_ps_str += "\n- fp_conn.Definition.Name: " + "fp is NULL"; }
-
-                        }
-                    }
-
-                    fp_ps_str += "\n- IsDeterminedByFormula: " + fp.IsDeterminedByFormula;
-                    fp_ps_str += "\n- CanAssignFormula: " + fp.CanAssignFormula;
-                    fp_ps_str += "\n- Formula: " + fp.Formula + "||||||";
-                    if (fp.Formula == null) { fp_ps_str += "\n- Formula Length : " + "is Null"; }
-                    else { fp_ps_str += "\n- Formula Length : " + fp.Formula.Length; }
-
-                    fp_ps_str += "\n- Discipline: " + get_famParamDefTypeIdValues(fp, "Discipline", dstnctFam.Name);
-                    fp_ps_str += "\n- Type Of Parameter: " + get_famParamDefTypeIdValues(fp, "typeOfParameter", dstnctFam.Name);
-
-                    fp_ps_str += "\n";
-                }
-            }
-            TaskDialog.Show("get_connAssocParam", fp_ps_str);
-
-            fp_ps_str = "Family Name: " + dstnctFam.Name;
-            fp_int = 0;
-
-            foreach (FamilyParameter fp in famParm_lst)
-            {
-                ParameterSet famAssociParam_set = fp.AssociatedParameters;
-                List<Parameter> famAssociParam_lst = fp.AssociatedParameters.Cast<Parameter>().ToList();
-                if (famAssociParam_lst.Count == 0)
-                {
-                    fp_int++;
-                    fp_ps_str += "\n" + fp_int + "- Name: " + fp.Definition.Name;
-                    fp_ps_str += "\n - there are NO!!!!  fp.AssociatedParameters: ";
-
-                    fp_ps_str += "\n- Discipline: " + get_famParamDefTypeIdValues(fp, "Discipline", dstnctFam.Name) +
-                    "\n- Type Of Parameter: " + get_famParamDefTypeIdValues(fp, "typeOfParameter", dstnctFam.Name) +
-                    "\n";
-                }
-            }
-            TaskDialog.Show("get_connAssocParam", fp_ps_str);
-
-
-            return true;
-        }  // End Of get_connAssocParam
-        #endregion  // End Of Get Associated Family Parameters
-
-
-
 
 
 
@@ -1237,57 +1066,6 @@ namespace KDS_Module
         #endregion  // End Of Get Associated Parameter for a given connectorElement
 
 
-
-
-
-
-        #region   // Get Family Parameter Definitions for Discipline and "Type Of Parameter".. Not In use since Associate parameters are better for implementation now.
-        // this is just to make code more readable... it is just splitting strings, since i cannot find a paramter that holds this info already
-        // and i did not want to put all these splits inside a code above.
-        public string get_famParamDefTypeIdValues(FamilyParameter tmpParam, string Id_str, string dstnctFam_Nm)
-        {
-            //TaskDialog.Show("get_famParamDefTypeIdValues", "Entering Function: get_famParamDefTypeIdValues ");
-            string tmpParamTypeId = tmpParam.Definition.GetDataType().TypeId;
-            //TaskDialog.Show("get_famParamDefTypeIdValues", "Exiting Function: get_famParamDefTypeIdValues " + "\n- Family Name: " + dstnctFam_Nm + "\n- tmpParamTypeId = " + tmpParamTypeId);
-            if (tmpParamTypeId != "" && tmpParamTypeId != null && tmpParamTypeId.Contains(':'))
-            {
-                string[] tmpParamTypeId_lst = tmpParamTypeId.Split(':');
-
-                if (tmpParamTypeId_lst.Length > 0)
-                {
-                    string tmpStr = "";
-                    if (Id_str == "Discipline")
-                    {
-                        tmpStr = tmpParamTypeId_lst[0].Split('.').Last();
-                        //TaskDialog.Show("get_famParamDefTypeIdValues", "Exiting Function: get_famParamDefTypeIdValues " + "\n- Family Name: " + dstnctFam_Nm + "\n- Type Of Paramter = " + tmpStr);
-                        return tmpStr;
-
-                    }
-                    if (Id_str == "typeOfParameter")
-                    {
-                        tmpStr = tmpParamTypeId_lst[1].Split('-')[0];
-                        //TaskDialog.Show("get_famParamDefTypeIdValues", "Exiting Function: get_famParamDefTypeIdValues " + "\n- Family Name: " + dstnctFam_Nm + "\n- Type Of Paramter = " + tmpStr);
-                        return tmpStr;
-                    }
-                }
-                else
-                {
-                    //TaskDialog.Show("get_famParamDefTypeIdValues", " Array length is 0");
-                }
-                //TaskDialog.Show("get_famParamDefTypeIdValues", "Exiting Function: get_famParamDefTypeIdValues " + "\n- Family Name: " + dstnctFam_Nm);
-                return tmpParam.Definition.GetDataType().TypeId;
-            }
-
-            else
-            {
-                //TaskDialog.Show("get_famParamDefTypeIdValues", " String  length is 0");
-            }
-            //TaskDialog.Show("get_famParamDefTypeIdValues", "Exiting Function: get_famParamDefTypeIdValues " + "\n- Family Name: " + dstnctFam_Nm);
-            return tmpParam.Definition.GetDataType().TypeId;
-        }
-
-        #endregion   // End Of Get Family Parameter Definitions for Discipline and "Tyoe Of Parameter"
-
         //======================================== create_update_Fam_KDS_CSV ===========================================================//
 
 
@@ -1301,6 +1079,7 @@ namespace KDS_Module
 
 
     #region  //famParam_Data_class
+    // Data Class to hold the different pieces of a parameter, Name, type, default Value and Formula
     public class famParam_Data_class
     {
         public string Name { get; set; }
