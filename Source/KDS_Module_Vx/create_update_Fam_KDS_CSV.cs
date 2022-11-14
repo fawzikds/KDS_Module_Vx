@@ -591,6 +591,7 @@ namespace KDS_Module
             int assignedfamParam_int = 0;
             string notAssignedfamParam_str = " List Of All Missing Parameters For: " + dstnctFamEdt.Title + "\n";
             int notAssignedfamParam_int = 0;
+            string ND_postFix_str = "";    // ",KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)\"";
 
             foreach (ExternalDefinition extDef in extDef_sorted_lst)
             {
@@ -603,7 +604,7 @@ namespace KDS_Module
                     {
                         string formula_str = "";
                         string vlu_str = "";
-
+                        
                         // When creating the lookup table file sizes are in piping Dimensions and should have ".00"   !!!! That's not true for fittings,Fixtures or Accessories.
                         // If ND is not used, such as KDS_ND3 for a Wye, then its associated column in the csv file should have a value of  0 for all sizes.
                         if (extDef.Name.Contains("KDS_ND"))   
@@ -619,7 +620,8 @@ namespace KDS_Module
                                 //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
                                 // Add Null First
                                 //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null); !!!! It Looks like i Do not need to write twice to it.
-
+                                // Adjust Formula indexing parameters (ND0-ND3)
+                                ND_postFix_str += ", " + extDef.Name;
                                 // Add actual Formula
                                 formula_str = get_AssociatedParametersofConnectorElement(dstnctFamEdt, connElmnt_lst[ce_index ] as ConnectorElement);
                                 add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str + "* 2"); 
@@ -680,8 +682,8 @@ namespace KDS_Module
                                 }
                             }
 
-                        }  // If KDS_ID_tbl
-                        else
+                        }  // End Of  If KDS_ID_tbl
+                        else   // All Other Parameterrs aother than the NDs and the KDS_ID_tbl
                         {
                             Dictionary<string, object> KDS_param_Vlu = new Dictionary<string, object>();
 
@@ -711,6 +713,7 @@ namespace KDS_Module
                             //    Actual Load Formula Transaction  ///
                             //////////////////////////////////////////
                             formula_str = get_famParam_Data_Str(fpData_lst, extDef.Name);
+                            formula_str += ND_postFix_str + ")";
                             //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
                             //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);
                             add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str);
@@ -1056,7 +1059,7 @@ namespace KDS_Module
             fpData1.type = "other";
             fpData1.units = "";
             fpData1.dfltVlu = "abyz";
-            fpData1.formula = "size_lookup(KDS_ID_tbl,\"KDS_HPH\",\" \", KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
+            fpData1.formula = "size_lookup(KDS_ID_tbl,\"KDS_HPH\",\" \" ";   //, KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData1);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData1.Name);
@@ -1066,7 +1069,7 @@ namespace KDS_Module
             fpData2.type = "currency";
             fpData2.units = "currency";
             fpData2.dfltVlu = "999999";
-            fpData2.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrList\", 999999, KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
+            fpData2.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrList\", 999999 ";   //,KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData2);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData2.Name);
@@ -1076,7 +1079,7 @@ namespace KDS_Module
             fpData3.type = "other";
             fpData3.units = "";
             fpData3.dfltVlu = "abyz";
-            fpData3.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrPart\", \"abyz\", KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
+            fpData3.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrPart\", \"abyz\" ";   //,KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData3);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData3.Name);
@@ -1086,7 +1089,7 @@ namespace KDS_Module
             fpData4.type = "number";
             fpData4.units = "general";
             fpData4.dfltVlu = "999999";
-            fpData4.formula = "size_lookup(KDS_ID_tbl, \"KDS_MCAA_LBR_RATE\", 999999, KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
+            fpData4.formula = "size_lookup(KDS_ID_tbl, \"KDS_MCAA_LBR_RATE\", 999999";   //,KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData4);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData4.Name);
@@ -1096,7 +1099,7 @@ namespace KDS_Module
             fpData5.type = "number";
             fpData5.units = "general";
             fpData5.dfltVlu = "999999";
-            fpData5.formula = "size_lookup(KDS_ID_tbl, \"KDS_LBR_RATE\", 999999, KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
+            fpData5.formula = "size_lookup(KDS_ID_tbl, \"KDS_LBR_RATE\", 999999 ";   //,KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData5);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData5.Name);
