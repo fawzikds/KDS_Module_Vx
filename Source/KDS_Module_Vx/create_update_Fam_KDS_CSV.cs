@@ -47,13 +47,10 @@ namespace KDS_Module
         {
 
             #region // Initializations, Filters, Collections //
-            List<string> paramFixedName_lst = new List<string> { "KDS_ID_tbl", "KDS_ND0", "KDS_ND1", "KDS_ND2", "KDS_ND3", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE" };
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
-            List<Element> famElem_lst;
             List<FamilySymbol> famSmbl_lst = new List<FamilySymbol>();
-            List<string> famNm_lst = new List<string>();
             List<Family> famMain_lst = new List<Family>();
             List<Family> dstnctFam_lst = new List<Family>();
             List<bicFam_strct> bicFam_lst = new List<bicFam_strct>();   // holds list of all families per bic
@@ -69,17 +66,13 @@ namespace KDS_Module
             bic_lst.Add(BuiltInCategory.OST_PipeAccessory);
             #endregion  // End Of Add the Category of Families to use (Pipe Fittings, Accessories, Fixtures...)
 
-            #region // Loop Thru every Category of Families and get all of its Elements in the actvDocument
+            #region // Loop Thru every Category of Families(fitt,Fixt,Acces) and get all of its Elements in the actvDocument
             // Then store in bicFam structure so we can access all families by their Category.
             string bicfam_tds = " Family Count per BIC\n";
             foreach (BuiltInCategory bic in bic_lst)
             {
-                famElem_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().ToList();
                 famSmbl_lst = new FilteredElementCollector(uidoc.Document).OfCategory(bic).WhereElementIsElementType().Select(df => df as FamilySymbol).ToList();
                 famMain_lst = famSmbl_lst.Select(fs => fs.Family).ToList();  // Get Family From familySymbols
-
-                // famSmbl_lst = famElem_lst.Select(fs => fs as FamilySymbol).ToList();
-                //famMain_lst = famElem_lst.Select(fs => fs as Family).ToList();  // Get Family From familySymbols
 
                 // This get a unique list of all families per Category.
                 dstnctFam_lst = famMain_lst.GroupBy(f => f.Name).Select(g => g.First()).ToList();    //how to find unique families based on family name, not family type, of given categories
@@ -120,7 +113,7 @@ namespace KDS_Module
             #endregion   // End OF Loop thru every Category and Create the Dir Tree if it does not exist
 
             #region    // Loop thru every Category and Create CSV from est_DB file for every Distinct Family 
-            show_DstnctFam(bicDstnctFam_lst); // Loop thru every Category and show Distinct Families  -- Debug Only
+            //show_DstnctFam(bicDstnctFam_lst); // Loop thru every Category and show Distinct Families  -- Debug Only
 
             if (bicDstnctFam_lst.Count() > 0)
             {
@@ -144,7 +137,7 @@ namespace KDS_Module
                 foreach (bicFam_strct bicDstnctFam in bicDstnctFam_lst)
                 {
                     // Reset string per BIC
-                    imprt_tds = "bicDstnctFam.bic_str:  " + bicDstnctFam.bic_str + "\t bicDstnctFamToString: " + bicDstnctFam.ToString() + "\n\n";
+                    imprt_tds = "bicDstnctFam.bic_str:  " + bicDstnctFam.bic_str + "\n\n";
                     //TaskDialog.Show("Execute", " Getting Ready to Import csvFiles for: " + imprt_tds);
                     if (bicDstnctFam.fam_lst.Count > 0)
                     {
@@ -166,10 +159,8 @@ namespace KDS_Module
                                 // Get FSTM (Family Size Table Manager)
                                 imprt_tds += "\n " + ftf_cnt + "- " + dstnctFam.Name + ":: Errors: " + ImportSizeLookUpTable(bicDstnctFam.bic_str, dstnctFamEdt, dstnctFamPath, csvFilePath);
 
-
                                 // This is a MAJOR function, i left it within this loop and not sepreate it out, since it is easier to load and save family right after i changed Things.
                                 Create_sharedParameter_inFamily(actvDoc, bicDstnctFam.bic_str, dstnctFamEdt, sharedParameter_fn, dstnctFamPath);
-                                ////////////////////////////////////////////////////////////
 
                                 dstnctFamEdt.LoadFamily(actvDoc, new familyLoadOptions()); // here the update begins
                                 //TaskDialog.Show("ImportSizeLookUpTable", "after  LoadFamily ");
@@ -214,9 +205,6 @@ namespace KDS_Module
             return Result.Succeeded;
         }
 
-        /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
         #region   // Create and Fill Families in Dir tree  with the .rfa and the .csv (csv will be empty now)
         public void CreateAndFill_FamilyDirTree(UIDocument uiDoc, string famBIC_Nm, string csvFilePath_const, List<Family> dstnctFam_lst)
         {
@@ -252,7 +240,7 @@ namespace KDS_Module
                 //If directory does not exist, create it
                 if (!Directory.Exists(famDir)) { Directory.CreateDirectory(famDir); }
 
-                // if file Does not exists or if it is older than curren... recreate it... this is now Always Overwrite 
+                // if file Does not exists or if it is older than current... recreate it... this is now Always Overwrite 
                 if (!System.IO.File.Exists(dstnctFamFname) || (System.IO.File.GetCreationTime(dstnctFamFname) < DateTime.UtcNow.AddMonths(-1)))
                 {
                     try
@@ -279,7 +267,7 @@ namespace KDS_Module
                 #region  // Create an Empty csv for each family lookup table file.  --- Uneccessary
                 //i don't need this since i will create it later as i am filling them with content from the KDS  est csv file.
                 // However, since i am still in testing, i need to have a file for every family so i can test the importLookuptable function.
-                // But this will not work for testing adding other parameters since the filles would not have any content.... unless if i add the header only ???
+                // But this will not work for testing adding other parameters since the files would not have any content.... unless if i add the header only ???
                 //Add CSV Files as Well
                 //if file Does not exists or if it is older than curren... recreate it
 
@@ -289,9 +277,7 @@ namespace KDS_Module
                 // {
                 string csvFile = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".csv");
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(csvFile));
-                using (
-
-                    var stream = System.IO.File.CreateText(csvFile))     // OPens or Creates File if it does not exist. if It exists it will overwrite its content
+                using (var stream = System.IO.File.CreateText(csvFile))     // Opens or Creates File if it does not exist. if It exists it will overwrite its content
                 {
                     // Write Headers first
                     csvRow = est_db_hdr.ToCsvString_excld("Size");
@@ -309,8 +295,7 @@ namespace KDS_Module
         // represents different fitting sizes for each family that will need to go into the same csv file.
         public void Csv_to_DB(UIDocument uidoc, string csvFilePath_const, string famBIC_Nm, List<Family> dstnctFam_lst)
         {
-
-            #region // test input lst   -- Debug Only
+            #region // test input lst   -- Debug Only  -- Commented Out
             /*          string ftf_tds = "\n Family BIC: " + famBIC_Nm + ":: Count: " + dstnctFam_lst.Count;
                       if (DstnctFam_lst.Count > 0)
                       {
@@ -401,9 +386,8 @@ namespace KDS_Module
 
                     dstnctFam_summary += " -- CSV File Name:" + dstnctFamFname;
 
-                    #region  // Save these rows to a csv file // OPens or Creates File if it does not exist. if It exists it will overwrite its content
-                    using (
-                        var stream = System.IO.File.CreateText(dstnctFamFname))     // OPens or Creates File if it does not exist. if It exists it will overwrite its content
+                    #region  // Save these rows to a csv file // Opens or Creates File if it does not exist. if It exists it will overwrite its content
+                    using (var stream = System.IO.File.CreateText(dstnctFamFname))     // Opens or Creates File if it does not exist. if It exists it will overwrite its content
                     {
                         string csvRow = "";
                         // Write Headers first
@@ -419,13 +403,9 @@ namespace KDS_Module
                             stream.WriteLine(csvRow);
                         }  // End Of foreach est_db_fam
                     }  // End Of Using
-
-
                     //TaskDialog.Show("CSV_TO_DB", sb1);
-
                     #endregion  // End Of Save Found Famiy rows to a csv file.
                 }  // end foreach famName
-
             }
             //TaskDialog.Show("Csv_to_DB", "TDS: " + dstnctFam_summary + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
             #endregion  // Loop Thru every Distinct Family and get its associated Rows from the Data var (est_db_data); Then Save these rows to a csv file.
@@ -444,7 +424,7 @@ namespace KDS_Module
             List<famParam_Data_class> fpData_lst = new List<famParam_Data_class>();
             fpData_lst = Get_HardCodedFamParamFormulas();
 
-            #region // Debug - List all  names of fpData_lst returned from Get_HardCodedFamParamFormulas-- Confirmed
+            #region // List all  names of fpData_lst returned from Get_HardCodedFamParamFormulas-- Confirmed - Debug Only -- Commented Out
             /*string fpData_Name_str = "list of all fpData_Names\n";
 
             foreach (famParam_Data_class fpD in fpData_lst)
@@ -454,7 +434,9 @@ namespace KDS_Module
             TaskDialog.Show("Create_sharedParameter_inFamily", fpData_Name_str);*/
             #endregion   // End Of Debug - List all  names of fpData_lst returned from Get_HardCodedFamParamFormulas-- Confirmed
 
-            #region Get a customSorted list of All External Definition in Shared Parametr File
+            #region // Get a customSorted list of All External Definition in Shared Parameter File. KDS_ID_tble and KDS_NDs params should 
+            //be processed before hph, mfrPart, mfrList, and MCAA_LBR and LBR rates.
+
             // Data Class to hold the different pieces of a parameter, Name, type, default Value and Formula
             famParam_Data_class fpData = new famParam_Data_class();
 
@@ -583,51 +565,47 @@ namespace KDS_Module
             #endregion // End Of LOOP Thru all extDef, and Delete old nonshared parameter with same name, and to create new shared parameters as from extDef.
 
 
-
-
             #region// LOOP thru extDef parameters and add parmeter formulas 
 
-            string assignedfamParam_str = " List Of All Found Parameters For: " + dstnctFamEdt.Title + "\n";
-            int assignedfamParam_int = 0;
-            string notAssignedfamParam_str = " List Of All Missing Parameters For: " + dstnctFamEdt.Title + "\n";
-            int notAssignedfamParam_int = 0;
+            //string assignedfamParam_str    = " List Of All Found Parameters For: " + dstnctFamEdt.Title + "\n";   // for Debug
+            //string notAssignedfamParam_str = " List Of All Missing Parameters For: " + dstnctFamEdt.Title + "\n"; //for Debug
+            // This String will expand to include any Parmeter Names that are associated to a ConnectorElement. This way include only these in the Formula string.
             string ND_postFix_str = "";    // ",KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)\"";
 
             foreach (ExternalDefinition extDef in extDef_sorted_lst)
             {
+
                 if (extDef.Name != null)
                 {
                     FamilyParameter tmpParam = dstnctFamMngr.get_Parameter(extDef.Name);
 
-                    // If it Exists but not a "Shared Parameter"  recreate as shared. since i am using Shared parameters and older non-shared params need to go.
+                    // If it Exists but not a "Shared Parameter"  recreate as shared. since i am using Shared parameters and all older non-shared params need to go.
                     if (tmpParam != null && tmpParam.CanAssignFormula)
                     {
                         string formula_str = "";
                         string vlu_str = "";
-                        
-                        // When creating the lookup table file sizes are in piping Dimensions and should have ".00"   !!!! That's not true for fittings,Fixtures or Accessories.
-                        // If ND is not used, such as KDS_ND3 for a Wye, then its associated column in the csv file should have a value of  0 for all sizes.
-                        if (extDef.Name.Contains("KDS_ND"))   
+
+                        // Set the KDS_NDs Parameter Formula Value. This is based on the associated Parameters to Connector Elements. see inner loop
+                        if (extDef.Name.Contains("KDS_ND"))
                         {
                             // If extDef is true and extDef.Name is true and extDef.Length !=0 is also true,
                             // then return the last character of extDef.Name ohterwise return 0... but convert to string
                             string ce_index_str = (extDef?.Name?.Length != 0 ? extDef.Name[extDef.Name.Length - 1] : '0').ToString();
+
                             // Convert the string to integer... Possible values 0, 1, 2, 3
                             int ce_index = Int32.Parse(ce_index_str);
+
                             // Possible Counts of ConnectorElements are: 1, 2, 3, 4 (for a Corss e.g.)
                             if (ce_index < connElmnt_lst.Count)
                             {
                                 //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
-                                // Add Null First
-                                //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null); !!!! It Looks like i Do not need to write twice to it.
-                                // Adjust Formula indexing parameters (ND0-ND3)
                                 ND_postFix_str += ", " + extDef.Name;
                                 // Add actual Formula
-                                formula_str = get_AssociatedParametersofConnectorElement(dstnctFamEdt, connElmnt_lst[ce_index ] as ConnectorElement);
-                                add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str + "* 2"); 
-                                }
+                                formula_str = get_AssociatedParametersofConnectorElement(dstnctFamEdt, connElmnt_lst[ce_index] as ConnectorElement);
+                                add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str + "* 2");
+                            }
                             else  // If this tmpParameter does not have an Associated ConnectorElement, then Delete that Parmeter from the Family.
-                                  // It is nicer to delete it out of the lokuptable.csv as well, but it is not necessary.
+                                  // It is nicer to delete it out of the lookuptable.csv as well, but it is not necessary.
                             {
                                 Transaction remove_param_trx = new Transaction(dstnctFamEdt, "Add Parameter Values");
                                 remove_param_trx.Start();
@@ -636,10 +614,9 @@ namespace KDS_Module
                                     dstnctFamMngr.RemoveParameter(tmpParam);
                                     //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);  // Erase Current Formula 
                                 }
-                                catch(Exception ex) {
-                                    
+                                catch (Exception ex)
+                                {
                                     TaskDialog.Show("Create_sharedParameter_inFamily", "Remove tmpParam:" + "\n- Family Param Name: " + tmpParam.Definition.Name + "\n- Exception: " + ex);
-                                    //
                                 }
                                 remove_param_trx.Commit();
                                 remove_param_trx.Dispose();
@@ -648,22 +625,21 @@ namespace KDS_Module
 
                         else if (extDef.Name == "KDS_ID_tbl")
                         {
-
-                            // You Have to loop thru evrey Family Type and assign the size_Lookup Table (KDS_ID_tbl) value.
-                            // I did not need to do that for every formula though.  adding a formula for one Family Type Filled it for all familytypes, which 
-                            // not intuitive, since i had to specify  that for every type.
+                            // !!!!Family Types Special Handling.!!!!
+                            // e.g. we have Hammer Arrestor with inlet Sizes of 1/2, 3/4, 1/ 2... each is not an instance, but a Type.
+                            // If there are more than one Type in a Family, then i have to loop thru evrey Family Type and assign the size_Lookup Table (KDS_ID_tbl) value.
+                            // Surprisingly, I did not need to do that for every formula though, but only for the lookuptable parameters. (KDS_ID_tbl)
+                            // Adding a formula for one Family Type Filled it for all familytypes, which not intuitive. You'd think i need to do it for all Parameters.
                             FamilyTypeSet famTypes_set = dstnctFamMngr.Types;
 
                             foreach (FamilyType famType in famTypes_set)
                             {
-
                                 dstnctFamMngr = SetFamilyManager_CurrentFamilyType(dstnctFamEdt, dstnctFamMngr, famType);
 
                                 Transaction set_Lookup_param_trx = new Transaction(dstnctFamEdt, "Add Parameter Values");
                                 set_Lookup_param_trx.Start();
                                 try
                                 {
-
                                     vlu_str = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFamEdt.Title, "");
                                     //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Value: " + vlu_str + "     -||");
                                     //dstnctFamMngr.Set(tmpParam, vlu_str);
@@ -683,36 +659,12 @@ namespace KDS_Module
                             }
 
                         }  // End Of  If KDS_ID_tbl
-                        else   // All Other Parameterrs aother than the NDs and the KDS_ID_tbl
+                        else   // All Other Parameterrs other than the NDs and the KDS_ID_tbl
                         {
-                            Dictionary<string, object> KDS_param_Vlu = new Dictionary<string, object>();
-
-                            KDS_param_Vlu.Add("KDS_HPH", "HPH");
-                            KDS_param_Vlu.Add("KDS_MfrList", 99.99);
-                            KDS_param_Vlu.Add("KDS_MfrPart", "MfrPart");
-                            KDS_param_Vlu.Add("KDS_MCAA_LBR_RATE", 99.99);
-                            KDS_param_Vlu.Add("KDS_LBR_RATE", 99.99);
-
-                            /////////////////////////////////////////////////////////////////////////////
-                            //   Initial Write Formula To Force Revit to Create a place holder for it  //
-                            /////////////////////////////////////////////////////////////////////////////
-
-                            // Put a dummy Value here... we will add the actuall value in the next transaction.This is due Revit not having this formula unless we right to it once.
-
-                            if (KDS_param_Vlu[extDef.Name].GetType() == typeof(double))
-                            { //add_FamParam_Formula(dstnctFamEdt,dstnctFamMngr, tmpParam, null);
-//                                add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, "9.9");
-                            }
-                            if (KDS_param_Vlu[extDef.Name].GetType() == typeof(string))
-                            { //add_FamParam_Formula(dstnctFamEdt,dstnctFamMngr, tmpParam, null);
-//                                add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, " ");
-                            }
-
-
-                            //////////////////////////////////////////
-                            //    Actual Load Formula Transaction  ///
-                            //////////////////////////////////////////
+                            // Get the Root Part of the Formula String
                             formula_str = get_famParam_Data_Str(fpData_lst, extDef.Name);
+
+                            // Add the ND index parametters to the formula.
                             formula_str += ND_postFix_str + ")";
                             //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
                             //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);
@@ -722,8 +674,6 @@ namespace KDS_Module
                         foundfamParam_int++;
                         foundfamParam_str += foundfamParam_int + "- Param Name: " + extDef.Name + "\n";
                     }// if fampar.CanAssignFormula
-
-                    // If parameter DOES NOT  Exists  ... Create it...
                     else
                     {
                         //TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Create Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title);
@@ -733,11 +683,9 @@ namespace KDS_Module
                         //TaskDialog.Show("Create_sharedParameter_inFamily", "created : " + tmpParam.Definition.Name);
                     }
                 }  // if extDef is not null
-
             }  // foreach dstnctFamExtDefParam
             //TaskDialog.Show("Create_sharedParameter_inFamily", assignedfamParam_str);
             //TaskDialog.Show("missingFamParams", notAssignedfamParam_str);
-
             #endregion// End Of LOOP thru extDef parameters and add parmeter formulas 
 
 
@@ -774,7 +722,8 @@ namespace KDS_Module
         }  // End Of SetFamilyManager_CurrentFamilyType
         #endregion // End Of Set FamilyManger Curent Type
 
-        #region  // Convoluted Way to set a formula ... similar to my familysizetable, you have to touch it first, before you can add a value to it.
+        #region  // This seems not to be true in Revit 2022......I am leaving it here, just in case i needed it for other versions.
+                 // Convoluted Way to set a formula ... similar to my familysizetable, you have to touch it first, before you can add a value to it.
         public void add_FamParam_Formula(Document dstnctFamEdt, FamilyManager dstnctFamMngr, FamilyParameter famParam, string formula_str)
         {
 
@@ -888,7 +837,6 @@ namespace KDS_Module
                 //TaskDialog.Show("ImportSizeLookUpTable", " dstnctFam.Name: " + dstnctFamEdt.Title + "\n With CSV: " + csvFilePathName + "\n - lookuptableResult excepton: " + ex);
                 return null;
             }
-
         }  // end of importSizeLookUpTable
         #endregion // End Of ImportSizeLookUpTable to Families
 
@@ -996,7 +944,7 @@ namespace KDS_Module
                         {
                             ftf_bic_int++;
                             ftf_tds += "\n" + ftf_bic_int + "- " + dstnctFam.Name;
-                            //TaskDialog.Show("Execute", ftf_tds + "\n\n\n\n\n\n\n\n\n\n\n\n");
+                            TaskDialog.Show("show_DstnctFam", ftf_tds + "\n\n\n\n\n\n\n\n\n\n\n\n");
                         }  // for each dstnctFam
                     }  // if bicDstnctFam.fam_lst count > 0
                 }  // foreach bicDstnctFam
@@ -1004,7 +952,7 @@ namespace KDS_Module
         }   // End OF show_DstnctFam
         #endregion   // End OF Loop thru every Category and Create the Dir Tree if it does not exist
 
-        #region // bicFam_strct
+        #region // bicFam_strct   It is a String to a List dictionary like, to hold all families of a certain BIC. so all ficture families in a bic_fixture_OST handle.
         public struct bicFam_strct
         {
             public string bic_str;
@@ -1038,7 +986,7 @@ namespace KDS_Module
         #endregion   //  End Of Get exteernal definition parameter (shared Param) by sting Name
 
 
-        #region   // Hardcoded Family Parameter Formulas
+        #region   // Hardcoded Family Parameter Formulas, So i can use later in code.  I am not sure if this is the smartest way, but considering its only 10 items, ithink it is ok.
         public List<famParam_Data_class> Get_HardCodedFamParamFormulas()
         {
             /// Hard Coded Formulas ///
@@ -1188,16 +1136,7 @@ namespace KDS_Module
 
         #endregion    // End Of get Parameter by name
 
-        #region  // Put it new Values for ND1, ND2, N3, ND4 based on Pipe Size Parameters in the current Family.
-
-        // - get a list of all connectors in family
-        // - get the name of their associated Parameter
-        // - assign one KDS_NDx to each of these associiated connectors. 
-
-        #endregion  // Put it new Values for ND1 ND2, N3, ND4 based on Pipe Size Parameters in the current Family.
-
-
-
+        
         #region   // Get Associated Parameter for a given connectorElement
         public string get_AssociatedParametersofConnectorElement(Document dstnctFamDocEdt, ConnectorElement connectorElement)
         {
