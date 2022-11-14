@@ -47,7 +47,7 @@ namespace KDS_Module
         {
 
             #region // Initializations, Filters, Collections //
-            List<string> paramFixedName_lst = new List<string> { "KDS_ID_tbl", "KDS_ND1", "KDS_ND2", "KDS_ND3", "KDS_ND4", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE" };
+            List<string> paramFixedName_lst = new List<string> { "KDS_ID_tbl", "KDS_ND0", "KDS_ND1", "KDS_ND2", "KDS_ND3", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE" };
             UIDocument uidoc = commandData.Application.ActiveUIDocument;
             Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
@@ -144,11 +144,11 @@ namespace KDS_Module
                 foreach (bicFam_strct bicDstnctFam in bicDstnctFam_lst)
                 {
                     // Reset string per BIC
-                    imprt_tds = bicDstnctFam.bic_str + "\n";
-                    TaskDialog.Show("Execute", " Getting Ready to Import csvFiles for: " + bicDstnctFam.bic_str);
+                    imprt_tds = "bicDstnctFam.bic_str:  " + bicDstnctFam.bic_str + "\t bicDstnctFamToString: " + bicDstnctFam.ToString() + "\n\n";
+                    //TaskDialog.Show("Execute", " Getting Ready to Import csvFiles for: " + imprt_tds);
                     if (bicDstnctFam.fam_lst.Count > 0)
                     {
-                        imprt_tds = "bicDstnctFam.fam_lst.Count: " + bicDstnctFam.fam_lst.Count;
+                        imprt_tds += "bicDstnctFam.fam_lst.Count: " + bicDstnctFam.fam_lst.Count;
                         int ftf_cnt = 0;
 
                         foreach (Family dstnctFam in bicDstnctFam.fam_lst)
@@ -204,7 +204,7 @@ namespace KDS_Module
                             }  // uneditable families
 
                         }  // foreach bicDstnctFam
-                        TaskDialog.Show("Execute", imprt_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+                        TaskDialog.Show("Execute", imprt_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
                     }  // End Of if  bicDstnctFam.fam_lst.Count > 0
                 }  // End Of foreach bicDstnctFam in bicDstnctFam_lst
             }  // End Of if bicDstnctFam_lst.Count() > 0
@@ -438,7 +438,7 @@ namespace KDS_Module
         {
             //TaskDialog.Show("test", "current family: " + family.Name);
             /// Hard Coded Formulas ///   I need this to sort other lists by the order seen here... so not alphabetical, but by another list.
-            List<string> paramFixedName_lst = new List<string> { "KDS_ID_tbl", "KDS_ND1", "KDS_ND2", "KDS_ND3", "KDS_ND4", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE" };
+            List<string> paramFixedName_lst = new List<string> { "KDS_ID_tbl", "KDS_ND0", "KDS_ND1", "KDS_ND2", "KDS_ND3", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE" };
 
             /// Hard Coded Formulas: Set a generic values for all parameters except for the lookuptable and for the NDs- This i will get from associated Parameter name to a ConnectorElement.
             List<famParam_Data_class> fpData_lst = new List<famParam_Data_class>();
@@ -604,24 +604,43 @@ namespace KDS_Module
                         string formula_str = "";
                         string vlu_str = "";
 
-                        if (extDef.Name.Contains("_ND"))
+                        // When creating the lookup table file sizes are in piping Dimensions and should have ".00"   !!!! That's not true for fittings,Fixtures or Accessories.
+                        // If ND is not used, such as KDS_ND3 for a Wye, then its associated column in the csv file should have a value of  0 for all sizes.
+                        if (extDef.Name.Contains("KDS_ND"))   
                         {
+                            // If extDef is true and extDef.Name is true and extDef.Length !=0 is also true,
+                            // then return the last character of extDef.Name ohterwise return 0... but convert to string
                             string ce_index_str = (extDef?.Name?.Length != 0 ? extDef.Name[extDef.Name.Length - 1] : '0').ToString();
+                            // Convert the string to integer... Possible values 0, 1, 2, 3
                             int ce_index = Int32.Parse(ce_index_str);
-
-                            if (ce_index - 1 >= connElmnt_lst.Count)
-                            {
-                                AddFormula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);
-                            }
-                            else
+                            // Possible Counts of ConnectorElements are: 1, 2, 3, 4 (for a Corss e.g.)
+                            if (ce_index < connElmnt_lst.Count)
                             {
                                 //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
                                 // Add Null First
-                                AddFormula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);
+                                //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null); !!!! It Looks like i Do not need to write twice to it.
 
                                 // Add actual Formula
-                                formula_str = get_AssociatedParametersofConnectorElement(dstnctFamEdt, connElmnt_lst[ce_index - 1] as ConnectorElement);
-                                AddFormula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str);
+                                formula_str = get_AssociatedParametersofConnectorElement(dstnctFamEdt, connElmnt_lst[ce_index ] as ConnectorElement);
+                                add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str + "* 2"); 
+                                }
+                            else  // If this tmpParameter does not have an Associated ConnectorElement, then Delete that Parmeter from the Family.
+                                  // It is nicer to delete it out of the lokuptable.csv as well, but it is not necessary.
+                            {
+                                Transaction remove_param_trx = new Transaction(dstnctFamEdt, "Add Parameter Values");
+                                remove_param_trx.Start();
+                                try
+                                {
+                                    dstnctFamMngr.RemoveParameter(tmpParam);
+                                    //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);  // Erase Current Formula 
+                                }
+                                catch(Exception ex) {
+                                    
+                                    TaskDialog.Show("Create_sharedParameter_inFamily", "Remove tmpParam:" + "\n- Family Param Name: " + tmpParam.Definition.Name + "\n- Exception: " + ex);
+                                    //
+                                }
+                                remove_param_trx.Commit();
+                                remove_param_trx.Dispose();
                             }
                         }
 
@@ -654,10 +673,10 @@ namespace KDS_Module
 
                                 catch (System.Exception ex)
                                 {
-                                    TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Get Associated Parameter Name For extDef: " + extDef.Name +
+                                    /*TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Get Associated Parameter Name For extDef: " + extDef.Name +
                                         " \n- Family Name: " + dstnctFamEdt.Title +
                                         " \n- Formula: " + formula_str +
-                                        " \n- Exception: " + ex);
+                                        " \n- Exception: " + ex);*/
                                 }
                             }
 
@@ -678,14 +697,13 @@ namespace KDS_Module
 
                             // Put a dummy Value here... we will add the actuall value in the next transaction.This is due Revit not having this formula unless we right to it once.
 
-
                             if (KDS_param_Vlu[extDef.Name].GetType() == typeof(double))
-                            { //AddFormula(dstnctFamEdt,dstnctFamMngr, tmpParam, null);
-                                AddFormula(dstnctFamEdt, dstnctFamMngr, tmpParam, "9.9");
+                            { //add_FamParam_Formula(dstnctFamEdt,dstnctFamMngr, tmpParam, null);
+//                                add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, "9.9");
                             }
                             if (KDS_param_Vlu[extDef.Name].GetType() == typeof(string))
-                            { //AddFormula(dstnctFamEdt,dstnctFamMngr, tmpParam, null);
-                                AddFormula(dstnctFamEdt, dstnctFamMngr, tmpParam, " ");
+                            { //add_FamParam_Formula(dstnctFamEdt,dstnctFamMngr, tmpParam, null);
+//                                add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, " ");
                             }
 
 
@@ -694,8 +712,8 @@ namespace KDS_Module
                             //////////////////////////////////////////
                             formula_str = get_famParam_Data_Str(fpData_lst, extDef.Name);
                             //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Formula Value: " + formula_str + "     -||");
-                            //AddFormula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);
-                            AddFormula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str);
+                            //add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, null);
+                            add_FamParam_Formula(dstnctFamEdt, dstnctFamMngr, tmpParam, formula_str);
                         }
 
                         foundfamParam_int++;
@@ -705,7 +723,7 @@ namespace KDS_Module
                     // If parameter DOES NOT  Exists  ... Create it...
                     else
                     {
-                        TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Create Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title);
+                        //TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Create Parameter Name: " + extDef.Name + " \n- Family Name: " + dstnctFamEdt.Title);
 
                         missingfamParam_int++;
                         missingfamParam_str += missingfamParam_int + "- Missing Param Name: " + extDef.Name + "\n";
@@ -714,8 +732,8 @@ namespace KDS_Module
                 }  // if extDef is not null
 
             }  // foreach dstnctFamExtDefParam
-            TaskDialog.Show("Create_sharedParameter_inFamily", assignedfamParam_str);
-            TaskDialog.Show("missingFamParams", notAssignedfamParam_str);
+            //TaskDialog.Show("Create_sharedParameter_inFamily", assignedfamParam_str);
+            //TaskDialog.Show("missingFamParams", notAssignedfamParam_str);
 
             #endregion// End Of LOOP thru extDef parameters and add parmeter formulas 
 
@@ -740,10 +758,10 @@ namespace KDS_Module
                 }
                 catch (System.Exception ex)
                 {
-                    TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Set famManger.CurrentType=familyType : " +
+                    /*TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Set famManger.CurrentType=familyType : " +
                         " \n- Family Name: " + dstnctFamEdt.Title +
                         " \n- Family Type Name: " + famType.Name +
-                        " \n- Exception: " + ex);
+                        " \n- Exception: " + ex);*/
                 }
                 trx.Commit();
                 trx.Dispose();
@@ -754,7 +772,7 @@ namespace KDS_Module
         #endregion // End Of Set FamilyManger Curent Type
 
         #region  // Convoluted Way to set a formula ... similar to my familysizetable, you have to touch it first, before you can add a value to it.
-        public void AddFormula(Document dstnctFamEdt, FamilyManager dstnctFamMngr, FamilyParameter famParam, string formula_str)
+        public void add_FamParam_Formula(Document dstnctFamEdt, FamilyManager dstnctFamMngr, FamilyParameter famParam, string formula_str)
         {
 
             using (Transaction trx = new Transaction(dstnctFamEdt))
@@ -775,10 +793,11 @@ namespace KDS_Module
                 }
                 catch (System.Exception ex)
                 {
-                    TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Get Associated Parameter Name For extDef: " + famParam.Definition.Name +
-                        " \n- Family Name: " + dstnctFamEdt.Title +
-                        " \n- Formula: " + formula_str +
-                        " \n- Exception: " + ex);
+                    /* TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Get Associated Parameter Name For extDef: " + famParam.Definition.Name +
+                         " \n- Family Name: " + dstnctFamEdt.Title +
+                         " \n- Formula: " + formula_str +
+                         " \n- Exception: " + ex);
+                 */
                 }
                 trx.Commit();
                 trx.Dispose();
@@ -827,9 +846,9 @@ namespace KDS_Module
 
                         if (fstm.RemoveSizeTable(lookupFileName) == false)   // use filename only with extension and without Path
                         {
-                            TaskDialog.Show("ImportSizeLookUpTable", "FamilyDocument: " + dstnctFamEdt.Title +
+                            /*TaskDialog.Show("ImportSizeLookUpTable", "FamilyDocument: " + dstnctFamEdt.Title +
                                 "\n- RemoveSizeTable Returned Null!! for file: " + csvFilePathName +
-                                "\n- lookupFileName: " + lookupFileName);
+                                "\n- lookupFileName: " + lookupFileName);*/
                         }
                         // End transaction
                         removeSzLktbl_trx.Commit();
@@ -850,7 +869,7 @@ namespace KDS_Module
                         Autodesk.Revit.DB.FamilySizeTableErrorInfo ImportErrorInfo = new Autodesk.Revit.DB.FamilySizeTableErrorInfo();
                         if (fstm.ImportSizeTable(dstnctFamEdt, csvFilePathName, ImportErrorInfo) == false)
                         {    // Use Full path here
-                            TaskDialog.Show("ImportSizeLookUpTable", " ImportSizeTable Reteurned FALSE!!. " + "\n ImportErrorInfo: " + ImportErrorInfo.ToString());
+                            //TaskDialog.Show("ImportSizeLookUpTable", " ImportSizeTable Reteurned FALSE!!. " + "\n ImportErrorInfo: " + ImportErrorInfo.ToString());
                         }
                         fstm.Dispose();
                         // End transaction
@@ -863,7 +882,7 @@ namespace KDS_Module
             }
             catch (Exception ex)
             {
-                TaskDialog.Show("ImportSizeLookUpTable", " dstnctFam.Name: " + dstnctFamEdt.Title + "\n With CSV: " + csvFilePathName + "\n - lookuptableResult excepton: " + ex);
+                //TaskDialog.Show("ImportSizeLookUpTable", " dstnctFam.Name: " + dstnctFamEdt.Title + "\n With CSV: " + csvFilePathName + "\n - lookuptableResult excepton: " + ex);
                 return null;
             }
 
@@ -1037,7 +1056,7 @@ namespace KDS_Module
             fpData1.type = "other";
             fpData1.units = "";
             fpData1.dfltVlu = "abyz";
-            fpData1.formula = "size_lookup(KDS_ID_tbl,\"KDS_HPH\",\" \", KDS_ND1, KDS_ND2, KDS_ND3, KDS_ND4)";
+            fpData1.formula = "size_lookup(KDS_ID_tbl,\"KDS_HPH\",\" \", KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData1);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData1.Name);
@@ -1047,7 +1066,7 @@ namespace KDS_Module
             fpData2.type = "currency";
             fpData2.units = "currency";
             fpData2.dfltVlu = "999999";
-            fpData2.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrList\", 999999, KDS_ND1, KDS_ND2, KDS_ND3, KDS_ND4)";
+            fpData2.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrList\", 999999, KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData2);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData2.Name);
@@ -1057,7 +1076,7 @@ namespace KDS_Module
             fpData3.type = "other";
             fpData3.units = "";
             fpData3.dfltVlu = "abyz";
-            fpData3.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrPart\", \"abyz\", KDS_ND1, KDS_ND2, KDS_ND3, KDS_ND4)";
+            fpData3.formula = "size_lookup(KDS_ID_tbl, \"KDS_MfrPart\", \"abyz\", KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData3);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData3.Name);
@@ -1067,7 +1086,7 @@ namespace KDS_Module
             fpData4.type = "number";
             fpData4.units = "general";
             fpData4.dfltVlu = "999999";
-            fpData4.formula = "size_lookup(KDS_ID_tbl, \"KDS_MCAA_LBR_RATE\", 999999, KDS_ND1, KDS_ND2, KDS_ND3, KDS_ND4)";
+            fpData4.formula = "size_lookup(KDS_ID_tbl, \"KDS_MCAA_LBR_RATE\", 999999, KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData4);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData4.Name);
@@ -1077,13 +1096,13 @@ namespace KDS_Module
             fpData5.type = "number";
             fpData5.units = "general";
             fpData5.dfltVlu = "999999";
-            fpData5.formula = "size_lookup(KDS_ID_tbl, \"KDS_LBR_RATE\", 999999, KDS_ND1, KDS_ND2, KDS_ND3, KDS_ND4)";
+            fpData5.formula = "size_lookup(KDS_ID_tbl, \"KDS_LBR_RATE\", 999999, KDS_ND0, KDS_ND1, KDS_ND2, KDS_ND3)";
             fpData_lst.Add(fpData5);
 
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData5.Name);
             famParam_Data_class fpData6 = new famParam_Data_class();
 
-            fpData6.Name = "KDS_ND1";
+            fpData6.Name = "KDS_ND0";
             fpData6.type = "length";
             fpData6.units = "inches";
             fpData6.dfltVlu = "";
@@ -1093,7 +1112,7 @@ namespace KDS_Module
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData6.Name);
             famParam_Data_class fpData7 = new famParam_Data_class();
 
-            fpData7.Name = "KDS_ND2";
+            fpData7.Name = "KDS_ND1";
             fpData7.type = "length";
             fpData7.units = "inches";
             fpData7.dfltVlu = "";
@@ -1103,7 +1122,7 @@ namespace KDS_Module
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData7.Name);
             famParam_Data_class fpData8 = new famParam_Data_class();
 
-            fpData8.Name = "KDS_ND3";
+            fpData8.Name = "KDS_ND2";
             fpData8.type = "length";
             fpData8.units = "inches";
             fpData8.dfltVlu = "";
@@ -1113,7 +1132,7 @@ namespace KDS_Module
             //TaskDialog.Show("sdfga", "\n fpData.Name: " + fpData8.Name);
             famParam_Data_class fpData9 = new famParam_Data_class();
 
-            fpData9.Name = "KDS_ND4";
+            fpData9.Name = "KDS_ND3";
             fpData9.type = "length";
             fpData9.units = "inches";
             fpData9.dfltVlu = "";
