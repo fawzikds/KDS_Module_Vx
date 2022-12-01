@@ -21,7 +21,7 @@ public class EmbeddedAssembly
 
         using (Stream stm = curAsm.GetManifestResourceStream(embeddedResource))
         {
-            // Either the file is not existed or it is not mark as embedded resource
+            // Either the file does not exist or it is not marked as embedded resource
             if (stm == null)
             {
                 throw new Exception(embeddedResource + " is not found in Embedded Resources.");
@@ -89,7 +89,7 @@ public class EmbeddedAssembly
     }
     #endregion
 
-    #region // Get Function to get assembly)
+    #region // Function to get assembly
     public static Assembly Get(string assemblyFullName)
     {
         if (dic == null || dic.Count == 0)

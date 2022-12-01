@@ -3,7 +3,7 @@ using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Selection;
 
-namespace KDS_Module
+namespace KDS_Module_Vx
 {
     public class SelectElement : IExternalCommand
     {

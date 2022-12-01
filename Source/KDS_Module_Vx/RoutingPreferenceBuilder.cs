@@ -30,6 +30,8 @@ using System.IO;
 using System.Xml;
 using System.Diagnostics;
 
+using Utility;
+
 namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
 {
     /// <summary>
@@ -487,7 +489,7 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
                 }
             }
             PipeSegment pipeSegment = PipeSegment.Create(m_document, materialId, scheduleId, sizes);
-            pipeSegment.Roughness = Utility.Convert.ConvertValueToFeet(roughness, m_document);
+            pipeSegment.Roughness = KDS_Convert.ConvertValueToFeet(roughness, m_document);
 
             return;
         }
@@ -505,7 +507,7 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
             xPipeSegment.Add(new XAttribute(XName.Get("pipeScheduleTypeName"), GetPipeScheduleTypeNamebyId(pipeSegment.ScheduleTypeId)));
             xPipeSegment.Add(new XAttribute(XName.Get("materialName"), GetMaterialNameById(pipeSegment.MaterialId)));
 
-            double roughnessInDocumentUnits = Utility.Convert.ConvertValueDocumentUnits(pipeSegment.Roughness, m_document);
+            double roughnessInDocumentUnits = KDS_Convert.ConvertValueDocumentUnits(pipeSegment.Roughness, m_document);
             xPipeSegment.Add(new XAttribute(XName.Get("roughness"), roughnessInDocumentUnits.ToString("r")));
 
             foreach (MEPSize size in pipeSegment.GetSizes())
@@ -545,7 +547,7 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
             try
             {
 
-                newSize = new MEPSize(Utility.Convert.ConvertValueToFeet(nominal, document), Utility.Convert.ConvertValueToFeet(inner, document), Utility.Convert.ConvertValueToFeet(outer, document), usedInSizeLists, usedInSizing);
+                newSize = new MEPSize(KDS_Convert.ConvertValueToFeet(nominal, document), KDS_Convert.ConvertValueToFeet(inner, document), KDS_Convert.ConvertValueToFeet(outer, document), usedInSizeLists, usedInSizing);
             }
 
             catch (Exception)
@@ -566,9 +568,9 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
         {
             XElement xMEPSize = new XElement(XName.Get("MEPSize"));
 
-            xMEPSize.Add(new XAttribute(XName.Get("innerDiameter"), (Utility.Convert.ConvertValueDocumentUnits(size.InnerDiameter, document)).ToString()));
-            xMEPSize.Add(new XAttribute(XName.Get("nominalDiameter"), (Utility.Convert.ConvertValueDocumentUnits(size.NominalDiameter, document)).ToString()));
-            xMEPSize.Add(new XAttribute(XName.Get("outerDiameter"), (Utility.Convert.ConvertValueDocumentUnits(size.OuterDiameter, document)).ToString()));
+            xMEPSize.Add(new XAttribute(XName.Get("innerDiameter"), (KDS_Convert.ConvertValueDocumentUnits(size.InnerDiameter, document)).ToString()));
+            xMEPSize.Add(new XAttribute(XName.Get("nominalDiameter"), (KDS_Convert.ConvertValueDocumentUnits(size.NominalDiameter, document)).ToString()));
+            xMEPSize.Add(new XAttribute(XName.Get("outerDiameter"), (KDS_Convert.ConvertValueDocumentUnits(size.OuterDiameter, document)).ToString()));
             xMEPSize.Add(new XAttribute(XName.Get("usedInSizeLists"), size.UsedInSizeLists));
             xMEPSize.Add(new XAttribute(XName.Get("usedInSizing"), size.UsedInSizing));
             return xMEPSize;
@@ -743,8 +745,8 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
                 if (min > max)
                     throw new RoutingPreferenceDataException("Invalid size range.");
 
-                min = Utility.Convert.ConvertValueToFeet(min, m_document);
-                max = Utility.Convert.ConvertValueToFeet(max, m_document);
+                min = KDS_Convert.ConvertValueToFeet(min, m_document);
+                max = KDS_Convert.ConvertValueToFeet(max, m_document);
                 sizeCriterion = new PrimarySizeCriterion(min, max);
             }
 
@@ -824,8 +826,8 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
                 else  //Only specify "maximumSize" if not specifying "All" or "None" for minimum size, just like in the UI.
                 {
 
-                    xRoutingPreferenceRule.Add(new XAttribute(XName.Get("minimumSize"), (Utility.Convert.ConvertValueDocumentUnits(psc.MinimumSize, m_document)).ToString()));
-                    xRoutingPreferenceRule.Add(new XAttribute(XName.Get("maximumSize"), (Utility.Convert.ConvertValueDocumentUnits(psc.MaximumSize, m_document)).ToString()));
+                    xRoutingPreferenceRule.Add(new XAttribute(XName.Get("minimumSize"), (KDS_Convert.ConvertValueDocumentUnits(psc.MinimumSize, m_document)).ToString()));
+                    xRoutingPreferenceRule.Add(new XAttribute(XName.Get("maximumSize"), (KDS_Convert.ConvertValueDocumentUnits(psc.MaximumSize, m_document)).ToString()));
                 }
             }
             else

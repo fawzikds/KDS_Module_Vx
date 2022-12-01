@@ -4,8 +4,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Utility;
 
-namespace KDS_Module
+namespace KDS_Module_Vx
 {
 
     #region // create_update_Fam_KDS_CSV
@@ -195,7 +196,7 @@ namespace KDS_Module
                             }  // uneditable families
 
                         }  // foreach bicDstnctFam
-                        TaskDialog.Show("Execute", imprt_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
+                        TaskDialog.Show("Execute", imprt_tds + "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
                     }  // End Of if  bicDstnctFam.fam_lst.Count > 0
                 }  // End Of foreach bicDstnctFam in bicDstnctFam_lst
             }  // End Of if bicDstnctFam_lst.Count() > 0
@@ -347,6 +348,7 @@ namespace KDS_Module
             }
             //TaskDialog.Show("Csv_to_DB", tds_edc + "\n\n\n\n\n\n\n\n\n");
             #endregion  // Get Data from the KDS Estimation CSV File.
+
 
             #region  // Loop Thru every Distinct Family and get its associated Rows from the Data var (est_db_data); Then Save these rows to a csv file.
             string dstnctFam_summary = " Distinct Family Summary for Category: " + famBIC_Nm + "\n";
@@ -1178,155 +1180,11 @@ namespace KDS_Module
 
 
 
-    #region  //famParam_Data_class
-    // Data Class to hold the different pieces of a parameter, Name, type, default Value and Formula
-    public class famParam_Data_class
-    {
-        public string Name { get; set; }
-        public string type { get; set; }
-        public string units { get; set; }
-        public string dfltVlu { get; set; }
-        public string formula { get; set; }
-
-        public static famParam_Data_class FromCsv(string csvLine)
-        {
-            string[] values = csvLine.Split(',');
-            famParam_Data_class famParam_Data = new famParam_Data_class();
-
-            famParam_Data.Name = values[0];
-            famParam_Data.type = values[1];
-            famParam_Data.units = values[2];
-            famParam_Data.dfltVlu = values[3];
-            famParam_Data.formula = values[4];
-
-            return famParam_Data;
-        }  // End From Csv
-
-        public override string ToString()
-        {
-            return
-                " Name: " + Name +
-                " :: type = " + type +
-                " :: dfltVlu = " + dfltVlu +
-                " :: units = " + units +
-                " :: formula = " + formula;
-        }  // End of ToString
-
-        public string ToFormatString()
-        {
-            return
-                " \n Name: " + Name +
-                "\n type = " + type +
-                "\n units = " + units +
-                "\n dfltVlu = " + dfltVlu +
-                "\n formula = " + formula;
-        }  // End of ToFormatString
-
-        public string ToCsvString()
-        {
-            return Name + "," + type + "," + units + "," + dfltVlu + "," + formula;
-        }  // End of ToCsvString
-
-    }  // End of Class est_data_class
-
-    #endregion  //paramFormula_Data_class
 
 
 
-    #region  //est_data_class
-    public class est_data_class
-    {
-        public string Size { get; set; }
-        public string famName { get; set; }
-        public string ND1 { get; set; }
-        public string ND2 { get; set; }
-        public string ND3 { get; set; }
-        public string ND4 { get; set; }
-        public string KDS_MfrPart { get; set; }
-        public string KDS_HPH { get; set; }
-        public string KDS_MfrList { get; set; }
-        public string KDS_MCAA_LBR_RATE { get; set; }
-        public string KDS_LBR_RATE { get; set; }
 
-        public static est_data_class FromCsv(string csvLine)
-        {
-            string[] values = csvLine.Split(',');
-            est_data_class est_data = new est_data_class();
-
-            est_data.Size = values[0];
-            est_data.famName = values[1];
-            est_data.ND1 = values[2];
-            est_data.ND2 = values[3];
-            est_data.ND3 = values[4];
-            est_data.ND4 = values[5];
-            est_data.KDS_MfrPart = values[6];
-            est_data.KDS_HPH = values[7];
-            est_data.KDS_MfrList = values[8];
-            est_data.KDS_MCAA_LBR_RATE = values[9];
-            est_data.KDS_LBR_RATE = values[10];
-
-            return est_data;
-        }  // End From Csv
-        public override string ToString()
-        {
-            return "" +
-                " Size: " + Size +
-                " :: famName = " + famName +
-                " :: ND1 = " + ND1 +
-                " :: ND2 = " + ND2 +
-                " :: ND3 = " + ND3 +
-                " :: ND4 = " + ND4 +
-                " :: KDS_MfrPart = " + KDS_MfrPart +
-                " :: KDS_HPH = " + KDS_HPH +
-                " :: KDS_MfrList = " + KDS_MfrList +
-                " :: KDS_MCAA_LBR_RATE = " + KDS_MCAA_LBR_RATE +
-                " :: KDS_LBR_RATE = " + KDS_LBR_RATE;
-        }  // End of ToString
-
-        public string ToFormatString()
-        {
-            return "" +
-                " Size: " + Size +
-                "\n famName = " + famName +
-                "\n ND1 = " + ND1 +
-                "\n ND2 = " + ND2 +
-                "\n ND3 = " + ND3 +
-                "\n ND4 = " + ND4 +
-                "\n KDS_MfrPart = " + KDS_MfrPart +
-                "\n KDS_HPH = " + KDS_HPH +
-                "\n KDS_MfrList = " + KDS_MfrList +
-                "\n KDS_MCAA_LBR_RATE = " + KDS_MCAA_LBR_RATE +
-                "\n KDS_LBR_RATE = " + KDS_LBR_RATE;
-        }  // End of ToFormatString
-        public string ToCsvString()
-        {
-            return Size + "," +
-                ND1 + "," + ND2 + "," + ND3 + "," + ND4 + "," +
-                KDS_MfrPart + "," + KDS_HPH + "," + KDS_MfrList + "," + KDS_MCAA_LBR_RATE + "," + KDS_LBR_RATE;
-        }  // End of ToCsvString
-
-        public string ToCsvString_excld(string prop)
-        {
-
-            string props = this.ToCsvString();
-
-
-            //return props.Replace(prop,"");
-            return "," +
-                ND1 + "," + ND2 + "," + ND3 + "," + ND4 + "," +
-                KDS_MfrPart + "," + KDS_HPH + "," + KDS_MfrList + "," + KDS_MCAA_LBR_RATE + "," + KDS_LBR_RATE;
-        }  // End of ToCsvString
-
-        public string ToCsvString_wfname()
-        {
-            return Size + "," + famName + "," +
-                ND1 + "," + ND2 + "," + ND3 + "," + ND4 + "," +
-                KDS_MfrPart + "," + KDS_HPH + "," + KDS_MfrList + "," + KDS_MCAA_LBR_RATE + "," + KDS_LBR_RATE;
-        }  // End of ToCsvString
-
-    }  // End of Class est_data_class
-
-    #endregion  //est_data_class
+   
 
 
 
