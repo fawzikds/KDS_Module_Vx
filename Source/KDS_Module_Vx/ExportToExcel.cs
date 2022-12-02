@@ -35,10 +35,22 @@ namespace KDS_Module_Vx
             // Lists for Headers in Excel File. Divided into categories based on type of parameter //
             List<string> elm_hdr_lst = new List<string> { "ElementID", "Family", "Type" };
             List<string> fam_hdr_lst = new List<string> { "System Classification", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "Category", "Size", "Length", "System Type" };
-            List<string> calc_hdr_lst = new List<string> { "Is Vertical", "Level", "Diameter", "System Name" };
+            List<string> calc_hdr_lst = new List<string> { "Is Vertical", "Is Underground", "Level", "Diameter", "System Name" };
+
+            #region // Get Lowest Level
+            // Get Lowest Level Point so i can find out if an Element is underground.
+            // This is not fool proof, since there are cases whether the lowest level is just above finished floor.
+            // Or the Building is on a slope, so other pipe wich is higher than lowest level is still underground.
+            FilteredElementCollector lvlCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Autodesk.Revit.DB.Level));
+            List<Level> levels_lst = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_Levels).WhereElementIsNotElementType().ToElements().Select(el => el as Level).ToList();
+
+            List<Autodesk.Revit.DB.Level> sortedLevels_lst = levels_lst.OrderBy(ordr => ordr.Elevation).ToList();
+            #endregion Get Lowest Level
 
 
-            // Get Alll Pipe KDS_Est_Data into a DB class
+
+
+            // Get All Pipe KDS_Est_Data into a DB class
             const string KDS_EST_PipeData_CSV_path = "Z:\\BIM\\KDS_SUPPLIER_CODE\\";
             const string KDS_EST_PipeData_CSV_fn = "KDS_All_Pipes.csv";
             string KDS_EST_PipeData_CSV = KDS_EST_PipeData_CSV_path + KDS_EST_PipeData_CSV_fn;
@@ -109,7 +121,7 @@ namespace KDS_Module_Vx
             dialogBox_rslt = dialogBox(uiDoc, elm_hdr_lst, fam_hdr_lst, calc_hdr_lst, KDSEstData_Pipe_lst);
             if (dialogBox_rslt)
             {
-                exportToExcel_func(uiDoc, elm_hdr_lst, fam_hdr_lst, calc_hdr_lst, KDSEstData_Pipe_lst);
+                exportToExcel_func(uiDoc, sortedLevels_lst, elm_hdr_lst, fam_hdr_lst, calc_hdr_lst, KDSEstData_Pipe_lst);
 
                 //List<List<string>> rc_data = exportToExcel_func(uiDoc, elm_hdr_lst, fam_hdr_lst, calc_hdr_lst,plumElem_lst);
 
@@ -331,7 +343,7 @@ namespace KDS_Module_Vx
 
 
         #region // exportToExcel_func   
-        public void exportToExcel_func(UIDocument uiDoc, List<string> elm_hdr_lst, List<string> famHdrList, List<string> calcHdrList, List<est_data_class> KDSEstData_Pipe_lst)
+        public void exportToExcel_func(UIDocument uiDoc, List<Level> sortedLevels_lst, List<string> elm_hdr_lst, List<string> famHdrList, List<string> calc_hdr_lst, List<est_data_class> KDSEstData_Pipe_lst)
         {
             // User Chose Export to Excel Option  //
             #region  //  Initialization and Definitions
@@ -346,7 +358,7 @@ namespace KDS_Module_Vx
             List<string> hdrList = new List<string>();
             hdrList.AddRange(elm_hdr_lst);   // Header Names 
             hdrList.AddRange(famHdrList);    // List of family instances
-            hdrList.AddRange(calcHdrList);   // List of Calculated Values such as is Vertical or IsUnderground etc
+            hdrList.AddRange(calc_hdr_lst);   // List of Calculated Values such as is Vertical or IsUnderground etc
 
             // Initialization of Output Excel Sheet Template to Write Our Data to//
             string filePath = "C:\\Users\\KDS-EST-3\\Desktop\\Excel_Files\\Elements.xltm";   //// move this to be an input param to this function.//
@@ -380,7 +392,8 @@ namespace KDS_Module_Vx
                 string length = pipe?.LookupParameter("Length")?.AsDouble().ToString("0.000");   // AsValueString();
                 string getPipeSysTypeName = pipe?.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)?.AsValueString();
                 string isVertical = IsVertical(pipe);
-                string getLevel = GetPipeLevel(uiDoc, pipe, "middle");
+                string isUnderground = IsUnderground(sortedLevels_lst,pipe);
+                string getLevel = GetPipeLevelName(sortedLevels_lst, pipe, "middle");
                 string diam = (12 * pipe.Diameter).ToString() + "\"";
                 string MEPSysName = pipe?.MEPSystem?.Name != null ? pipe.MEPSystem.Name : "null";
 
@@ -400,6 +413,7 @@ namespace KDS_Module_Vx
                     length,
                     getPipeSysTypeName,
                     isVertical,
+                    isUnderground,
                     getLevel,
                     diam,
                     MEPSysName,
@@ -433,7 +447,8 @@ namespace KDS_Module_Vx
                     Fitt?.LookupParameter("Size")?.AsString() ?? "\"NA\"",
                     "\"NA\"",
                     Fitt.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString(),
-                    "\"NA\"",
+                    "\"NA\"",   // Is Vertical
+                    "\"NA\"",  // Is Underground
                     GetInstanceLevel(uiDoc, Fitt),
                     "\"NA\"",
                     Fitt.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString(),
@@ -460,7 +475,8 @@ namespace KDS_Module_Vx
                     "\"NA\"",
                     "\"NA\"" ,
                     fixt.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString(),
-                    "\"NA\"",
+                     "\"NA\"",   // Is Vertical
+                    "\"NA\"",  // Is Underground
                     GetInstanceLevel(uiDoc, fixt),
                     "\"NA\"",
                     fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString(),
@@ -487,7 +503,8 @@ namespace KDS_Module_Vx
                     "\"NA\"" ,
                     "\"NA\"" ,
                     PipeAcce.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString(),
-                    "\"NA\"",
+                     "\"NA\"",   // Is Vertical
+                    "\"NA\"",  // Is Underground
                     GetInstanceLevel(uiDoc, PipeAcce),
                     "\"NA\"",
                     PipeAcce.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString(),
@@ -638,8 +655,11 @@ namespace KDS_Module_Vx
         }
         #endregion
 
+
+
+
         #region // GetPipeLevel Function to get Level Name of Current Pipe //
-        public string GetPipeLevel(UIDocument uidoc, Pipe p, string startEndMiddle)
+        public string GetPipeLevelName(List<Autodesk.Revit.DB.Level> sortedLevels_lst, Pipe p, string startEndMiddle)
         {
             string lvlName = null;
             LocationCurve lc = p.Location as LocationCurve;
@@ -648,25 +668,12 @@ namespace KDS_Module_Vx
             double zLocEnd = c.GetEndPoint(1).Z;
             double zLocMiddle = (zLocStart + zLocEnd) / 2;
 
-            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
-
-            List<Autodesk.Revit.DB.Level> levels = new List<Autodesk.Revit.DB.Level>();
-            List<Autodesk.Revit.DB.Level> sortedLevels = new List<Autodesk.Revit.DB.Level>();
-
-            FilteredElementCollector lvlCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Autodesk.Revit.DB.Level));
-
-            foreach (Autodesk.Revit.DB.Level level in lvlCollector)
-            {
-                levels.Add(level);
-            }
-
-            sortedLevels = levels.OrderBy(o => o.Elevation).ToList();
-
+           
             #region // User wants Z-Coordinate of Start EndPoint for Pipe //
 
             if (startEndMiddle == "start" || startEndMiddle == "Start")
             {
-                foreach (Autodesk.Revit.DB.Level level in sortedLevels)
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
                 {
                     if (zLocStart > level.Elevation)
                     {
@@ -676,7 +683,7 @@ namespace KDS_Module_Vx
 
                 if (lvlName == null)
                 {
-                    lvlName = sortedLevels.First().Name;
+                    lvlName = sortedLevels_lst.First().Name;
                 }
             }
             #endregion
@@ -684,7 +691,7 @@ namespace KDS_Module_Vx
             #region // User wants Z-Coordinate of End Endpoint for Pipe //
             if (startEndMiddle == "end" || startEndMiddle == "End")
             {
-                foreach (Autodesk.Revit.DB.Level level in sortedLevels)
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
                 {
                     if (zLocEnd > level.Elevation)
                     {
@@ -694,7 +701,7 @@ namespace KDS_Module_Vx
 
                 if (lvlName == null)
                 {
-                    lvlName = sortedLevels.First().Name;
+                    lvlName = sortedLevels_lst.First().Name;
                 }
             }
             #endregion
@@ -702,7 +709,7 @@ namespace KDS_Module_Vx
             #region // User wants Z-Coordinate of Midpoint of Pipe //
             if (startEndMiddle == "middle" || startEndMiddle == "Middle")
             {
-                foreach (Autodesk.Revit.DB.Level level in sortedLevels)
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
                 {
                     if (zLocMiddle > level.Elevation)
                     {
@@ -712,7 +719,7 @@ namespace KDS_Module_Vx
 
                 if (lvlName == null)
                 {
-                    lvlName = sortedLevels.First().Name;
+                    lvlName = sortedLevels_lst.First().Name;
                 }
             }
             #endregion
@@ -722,6 +729,124 @@ namespace KDS_Module_Vx
             return lvlName;
         }
         #endregion
+
+
+        #region // GetPipeLevel Function to get Level Name of Current Pipe //
+        public double GetPipeZ(Pipe pipe, string startEndMiddle)
+        {
+
+            Level lvl = null;
+            LocationCurve lc = pipe.Location as LocationCurve;
+            Curve crv = lc.Curve;
+            double zLocStart = crv.GetEndPoint(0).Z;
+            double zLocEnd = crv.GetEndPoint(1).Z;
+            double zLocMiddle = (zLocStart + zLocEnd) / 2;
+
+
+           // User wants Z-Coordinate of Start EndPoint for Pipe //
+           if (startEndMiddle == "start" || startEndMiddle == "Start")
+            {
+                return zLocStart;
+            }
+           
+            // User wants Z-Coordinate of End Endpoint for Pipe //
+            if (startEndMiddle == "end" || startEndMiddle == "End")
+            {
+                return zLocEnd;
+            }
+            // User wants Z-Coordinate of Midpoint of Pipe //
+            if (startEndMiddle == "middle" || startEndMiddle == "Middle")
+            {
+                return zLocMiddle;
+            }
+            
+            else { TaskDialog.Show("error", "value for startEndMiddle is not \"start\", \"end\", or \"middle\""); }
+
+            return 9999.9;
+        }
+        #endregion
+
+
+
+
+
+        #region // GetPipeLevel Function to get Level Name of Current Pipe //
+        public Level GetPipeLevel(List<Autodesk.Revit.DB.Level> sortedLevels_lst, Pipe p, string startEndMiddle)
+        {
+            Level lvl = null;
+            LocationCurve lc = p.Location as LocationCurve;
+            Curve c = lc.Curve;
+            double zLocStart = c.GetEndPoint(0).Z;
+            double zLocEnd = c.GetEndPoint(1).Z;
+            double zLocMiddle = (zLocStart + zLocEnd) / 2;
+
+
+            #region // User wants Z-Coordinate of Start EndPoint for Pipe //
+
+            if (startEndMiddle == "start" || startEndMiddle == "Start")
+            {
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
+                {
+                    if (zLocStart > level.Elevation)
+                    {
+                        lvl = level;
+                    }
+                }
+
+                if (lvl == null)
+                {
+                    lvl = sortedLevels_lst.First();
+                }
+            }
+            #endregion
+
+            #region // User wants Z-Coordinate of End Endpoint for Pipe //
+            if (startEndMiddle == "end" || startEndMiddle == "End")
+            {
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
+                {
+                    if (zLocEnd > level.Elevation)
+                    {
+                        lvl = level;
+                    }
+                }
+
+                if (lvl == null)
+                {
+                    lvl = sortedLevels_lst.First();
+                }
+            }
+            #endregion
+
+            #region // User wants Z-Coordinate of Midpoint of Pipe //
+            if (startEndMiddle == "middle" || startEndMiddle == "Middle")
+            {
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
+                {
+                    if (zLocMiddle > level.Elevation)
+                    {
+                        lvl = level;
+                    }
+                }
+
+                if (lvl == null)
+                {
+                    lvl = sortedLevels_lst.First();
+                }
+            }
+            #endregion
+
+            else { TaskDialog.Show("error", "value for startEndMiddle is not \"start\", \"end\", or \"middle\""); }
+
+            return lvl;
+        }
+        #endregion
+
+
+
+
+
+
 
         #region // GetFittingLevel Function to get Level Name of Current Fitting //
         public string GetInstanceLevel(UIDocument uidoc, FamilyInstance inst)
@@ -790,6 +915,35 @@ namespace KDS_Module_Vx
             }
         }
         #endregion
+
+
+
+        #region // IsUnderground Function to determine whether a Pipe is vertical or not //
+        public string IsUnderground( List<Level> sortedLevels_lst, Pipe pipe)
+        {
+
+            // if System Name has "_BG_" in it.  return yes
+            if (pipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString().Contains("_BG_"))
+            {
+                return "Yes";
+            }
+            // else check if level is lowest than lowest level.
+            else
+            {
+                if (sortedLevels_lst[0].Elevation > GetPipeLevel(sortedLevels_lst, pipe, "middle").Elevation)
+                {
+                    return "Yes";
+                }
+                else
+                {
+                    return "No";
+                }
+            }
+            
+            return "NA";
+            
+        }  // End Of IsUnderground
+        #endregion  // End Of IsUnderground
 
         #region // CreateXL_macro Function to Handle Exporting (Writing) rc_data to a Macro Enable excel (.xlsm)
         public static void CreateXL_macro(string filePath, string sheetName, int startRow, int startCol, List<List<string>> rc_data, List<string> hdrList)

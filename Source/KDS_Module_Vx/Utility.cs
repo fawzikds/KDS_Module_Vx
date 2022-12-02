@@ -25,6 +25,8 @@ using System.Collections.Generic;
 using System.IO;
 using System;
 using System.Linq;
+using Autodesk.Revit.DB.Plumbing;
+using Autodesk.Revit.UI;
 
 //namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
 namespace Utility
@@ -235,6 +237,7 @@ namespace Utility
 
     internal class KDS_Functions
     {
+
         private static List<string> FindAllRefrences(ref int ctr, string dir, string projectToSearch)
         {
             List<string> refs = new List<string>();
@@ -257,7 +260,111 @@ namespace Utility
             }
 
             return refs;
+        }// End Of FindAllReferences
+
+
+        #region // GetPipeLevel Function to get Level Name of Current Pipe //
+        public string GetPipeLevel(UIDocument uidoc, Pipe p, string startEndMiddle)
+        {
+            string lvlName = null;
+            LocationCurve lc = p.Location as LocationCurve;
+            Curve c = lc.Curve;
+            double zLocStart = c.GetEndPoint(0).Z;
+            double zLocEnd = c.GetEndPoint(1).Z;
+            double zLocMiddle = (zLocStart + zLocEnd) / 2;
+
+            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
+
+
+            List<Autodesk.Revit.DB.Level> sortedLevels_lst = new List<Autodesk.Revit.DB.Level>();
+
+            List<Level> levels_lst = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_Levels).WhereElementIsNotElementType().ToElements().Select(el => el as Level).ToList();
+
+            if (levels_lst.Count > 0)
+            {
+                //sortedLevels_lst = levels_lst.OrderByDescending(ordr => ordr.Elevation).ToList();
+                sortedLevels_lst = levels_lst.OrderBy(ordr => ordr.Elevation).ToList();
+            }
+            /* For Debug Only.--- List Levels and Lowest Floor
+                       if (levels_lst.Count > 0)
+                       {
+                               string tsd_lvl = "";
+                               tsd_lvl = "levels Found:\n";
+                               int int_lvl = 0;
+                               foreach (Autodesk.Revit.DB.Level srLvl in sortedLevels_lst)
+                               {
+                                   int_lvl++;
+                                   tsd_lvl += int_lvl + "- " + srLvl.Name + " @ Z: " + srLvl.Elevation +"\n";
+                                   //levels_lst.Add(level);
+
+                               }
+                               tsd_lvl += " Lowest Level is: " + sortedLevels_lst[0].Name;
+                               TaskDialog.Show("sdsfgsd", tsd_lvl);
+                        }
+            */
+
+
+            #region // User wants Z-Coordinate of Start EndPoint for Pipe //
+
+            if (startEndMiddle == "start" || startEndMiddle == "Start")
+            {
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
+                {
+                    if (zLocStart > level.Elevation)
+                    {
+                        lvlName = level.Name;
+                    }
+                }
+
+                if (lvlName == null)
+                {
+                    lvlName = sortedLevels_lst.First().Name;
+                }
+            }
+            #endregion
+
+            #region // User wants Z-Coordinate of End Endpoint for Pipe //
+            if (startEndMiddle == "end" || startEndMiddle == "End")
+            {
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
+                {
+                    if (zLocEnd > level.Elevation)
+                    {
+                        lvlName = level.Name;
+                    }
+                }
+
+                if (lvlName == null)
+                {
+                    lvlName = sortedLevels_lst.First().Name;
+                }
+            }
+            #endregion
+
+            #region // User wants Z-Coordinate of Midpoint of Pipe //
+            if (startEndMiddle == "middle" || startEndMiddle == "Middle")
+            {
+                foreach (Autodesk.Revit.DB.Level level in sortedLevels_lst)
+                {
+                    if (zLocMiddle > level.Elevation)
+                    {
+                        lvlName = level.Name;
+                    }
+                }
+
+                if (lvlName == null)
+                {
+                    lvlName = sortedLevels_lst.First().Name;
+                }
+            }
+            #endregion
+
+            else { TaskDialog.Show("error", "value for startEndMiddle is not \"start\", \"end\", or \"middle\""); }
+
+            return lvlName;
         }
+        #endregion
+
     }
 
 }
