@@ -20,12 +20,12 @@ namespace KDS_Module_Vx
     {
         #region  // Setup Revit Revision Dependent csvFilePath
         //const string csvFilePath_const = "Z:\\BIM\\Families\\SupplierCode\\CI_NH_fittings_Charlotte_KDS.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
-        //const string csvFilePath_const = "Z:\\BIM\\Families\\SupplierCode\\KDS_CI_NH_BLK_MLBL.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
+        //const string csvFilePath_const = "Z:\BIM\KDS_SUPPLIER_CODE\\KDS_CI_NH_BLK_MLBL.csv";    // COntains HPH and List Price for all Elements used by KDS, fittings, Accessories, Finish, etc..
         //const string csvFilePath_const = get_PriceDB_fileName();
 
 #if (RVT2022)
         const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2022\\";
-        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";            // Shared Parmeters.. this is how we get into the family parameters.  i am still not sure if this is best to use.
+        const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";          // Shared Parmeters.. this is how we get into the family parameters. Still not sure if this is best to use.
 #elif (RVT2021)
         const string sharedParameter_dir = "Z:\\BIM\\KDS_TEMPLATE\\2021\\";
         const string sharedParameter_fn = sharedParameter_dir + "KDS_SHARED_PARAMS.txt";
@@ -206,6 +206,7 @@ namespace KDS_Module_Vx
             return Result.Succeeded;
         }
 
+
         #region   // Create and Fill Families in Dir tree  with the .rfa and the .csv (csv will be empty now)
         public void CreateAndFill_FamilyDirTree(UIDocument uiDoc, string famBIC_Nm, string csvFilePath_const, List<Family> dstnctFam_lst)
         {
@@ -226,8 +227,8 @@ namespace KDS_Module_Vx
                 //string famTypeDir = sharedParameter_dir + BuiltInCategory.OST_PipeFitting.ToString() + "\\";     // z:\BIM\KDS_TEMPLATE\2022\fittings
                 string famTypeDir = sharedParameter_dir + famBIC_Nm + "\\";     // z:\BIM\KDS_TEMPLATE\2022\fittings
                 string famManfDir = famTypeDir + folderName + "\\";                // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH
-                string famDir = famManfDir + dstnctFam.Name + "\\";                      // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\
-                                                                                         //string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".rfa";   // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\KDS_Char_CI_NH_Coupling.rfa
+                string famDir = famManfDir + dstnctFam.Name + "\\";                      // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH-Coupling\
+                                                                                         //string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".rfa";   // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI-NH\KDS_Char_CI_NH-Coupling\KDS_Char_CI_NH-Coupling.rfa
 
                 string dstnctFamFname = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".rfa");
 
@@ -661,7 +662,7 @@ namespace KDS_Module_Vx
                             }
 
                         }  // End Of  If KDS_ID_tbl
-                        else   // All Other Parameterrs other than the NDs and the KDS_ID_tbl
+                        else   // All Other Parameters other than the NDs and the KDS_ID_tbl
                         {
                             // Get the Root Part of the Formula String
                             formula_str = get_famParam_Data_Str(fpData_lst, extDef.Name);
@@ -899,9 +900,9 @@ namespace KDS_Module_Vx
 
             string famTypeDir = sharedParameter_dir + bic_nm + "\\";              // z:\BIM\KDS_TEMPLATE\2022\fittings
             string famManfDir = famTypeDir + folderName + "\\";                // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH
-            string famDir = famManfDir + famName + "\\";                       // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\
+            string famDir = famManfDir + famName + "\\";                       // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH-Coupling\
 
-            string file = famDir + famName + ext;                        // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH_Coupling\KDS_Char_CI_NH_Coupling.???
+            string file = famDir + famName + ext;                        // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH-Coupling\KDS_Char_CI_NH-Coupling.???
 
             return file;
         }  // End Of getFileNames
@@ -923,10 +924,10 @@ namespace KDS_Module_Vx
             {
                 selectedFileName = openFileDialog1.FileName;
             }
-            else { selectedFileName = "Z:\\BIM\\Families\\SupplierCode\\KDS_CI_NH_BLK_MLBL.csv"; }
+            else { selectedFileName = "Z:\\BIM\\Families\\SupplierCode\\KDS_CI_NH-BLK_MLBL.csv"; }
             openFileDialog1.Dispose();
             return selectedFileName;*/
-            return "Z:\\BIM\\Families\\SupplierCode\\KDS_CI_NH_BLK_MLBL.csv";
+            return "Z:\\BIM\\KDS_SUPPLIER_CODE\\KDS_CI_NH_BLK_MLBL.csv";
         }
         #endregion  // End Of Get Pricing Database filename
 

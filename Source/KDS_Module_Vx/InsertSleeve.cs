@@ -82,11 +82,11 @@ namespace KDS_Module_Vx
 
 
             // Third Itiration - use Modeless form
-            insertSleeve_frm_CL insertSleeve_frm = new insertSleeve_frm_CL();
-            insertSleeve_frm.doc = uiDoc.Document;   //  insertSleeve_frm_CL.doc is declared in insertSleeve_frm_CL.cs
-            insertSleeve_frm.Show();
+            //insertSleeve_frm_CL insertSleeve_frm = new insertSleeve_frm_CL();
+            //insertSleeve_frm.doc = uiDoc.Document;   //  insertSleeve_frm_CL.doc is declared in insertSleeve_frm_CL.cs
+            //insertSleeve_frm.Show();
 
-            return Result.Succeeded;
+            //return Result.Succeeded;
 
 
 
@@ -499,9 +499,10 @@ namespace KDS_Module_Vx
             using (Transaction createFloor = new Transaction(actvDoc, "Create floor"))
             {
                 createFloor.Start();
+                FloorType floorType = null;
 #if RVT2020
                 #region // Get a floor type for floor creation 2020
-                FloorType floorType = new FilteredElementCollector(actvDoc).OfClass(typeof(FloorType)).First(e => e.Name.Equals("Generic - 12\"")) as FloorType;   //For Revit 2021 and older
+                floorType = new FilteredElementCollector(actvDoc).OfClass(typeof(FloorType)).First(e => e.Name.Equals("Generic - 12\"")) as FloorType;   //For Revit 2021 and older
       
                 // The normal vector (0,0,1) that must be perpendicular to the profile.
                 XYZ normal = XYZ.BasisZ;
@@ -525,7 +526,7 @@ namespace KDS_Module_Vx
                 XYZ normal = XYZ.BasisZ;
 
                 #region                // Get a floor type for floor creation 2021
-                FloorType floorType = new FilteredElementCollector(actvDoc).OfClass(typeof(FloorType)).First(e => e.Name.Equals("Generic - 12\"")) as FloorType;   //For Revit 2021 and older
+                floorType = new FilteredElementCollector(actvDoc).OfClass(typeof(FloorType)).First(e => e.Name.Equals("Generic - 12\"")) as FloorType;   //For Revit 2021 and older
 
                 // The normal vector (0,0,1) that must be perpendicular to the profile.
 
@@ -580,7 +581,7 @@ namespace KDS_Module_Vx
                 p1.Set(0);
                 //p2.Set(flrTh_dbl);
 
-                FloorType floorType = floor.FloorType;
+                floorType = floor.FloorType;
                 floorType.GetCompoundStructure().SetLayerWidth(0, flrTh_dbl);
 
                 createFloor.Commit();

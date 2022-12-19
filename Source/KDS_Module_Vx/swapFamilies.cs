@@ -51,9 +51,9 @@ namespace KDS_Module_Vx
         {
             #region  // Define Family Names for collector search.
 
-            string selectString = "KDS_Char_CI_NH_Wye"; // NAME OF OBJECT TO BE REPLACED //
-            string sanTeeString = "KDS_Char_CI_NH_SanTee"; // NAME OF REPLACING OBJECT 
-            string comboString = "KDS_Char_CI_NH_Combo"; // NAME OF REPLACING OBJECT 
+            string selectString = "KDS_Char_CI_NH-Wye"; // NAME OF OBJECT TO BE REPLACED //
+            string sanTeeString = "KDS_Char_CI_NH-SanTee"; // NAME OF REPLACING OBJECT 
+            string comboString = "KDS_Char_CI_NH-Combo"; // NAME OF REPLACING OBJECT 
             const string param_name = "Angle"; // NAME OF PARAMETER BEING COMPARED / ANALYZED //
             double angle = Math.PI / 2;
             double angleTolerance = 0.15;
@@ -220,7 +220,7 @@ namespace KDS_Module_Vx
 
             List<string> swapingFamName2_lst = new List<string>() {
                 "KDS_Char_CI_NH-SixteenthBend",
-                "KDS_Char_CI_NH_EighthBend",
+                "KDS_Char_CI_NH-EighthBend",
                 "KDS_Char_CI_NH-SixthBend",
                 "KDS_Char_CI_NH-FifthBend",
                 "KDS_Char_CI_NH-QuarterBend",

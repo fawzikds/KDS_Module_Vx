@@ -79,33 +79,52 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
             if (m_pipeTypes.Count() == 0)
                 throw new RoutingPreferenceDataException("No pipe pipes defined in this project.  At least one must be defined.");
 
-#if (CONFIG_R2019 || CONFIG_R2020)
-            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);   // For Revit 2021 and older
-            string docPipeSizeUnit = formatOptionPipeSize.DisplayUnits.ToString();
+
+#if RVT2022
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
+#elif RVT2021
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
+#elif RVT2020
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.DisplayUnits.ToString();
+#elif RVT2019
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.DisplayUnits.ToString();
+#elif RVT2018
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.DisplayUnits.ToString();
 #else
-            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);    // For Revit 2022
-            string docPipeSizeUnit = formatOptionPipeSize.GetUnitTypeId().TypeId;
 #endif
-            
+
             string xmlPipeSizeUnit = xDoc.Root.Attribute("pipeSizeUnits").Value;
-            if (docPipeSizeUnit != xmlPipeSizeUnit)
+            if (unitStringPipeSize != xmlPipeSizeUnit)
                 throw new RoutingPreferenceDataException("Units from XML do not match current pipe size units.");
-            //Autodesk.Revit.UI.TaskDialog.Show("RoutingPreferenceBuilder", "I am in ParseAllPipingPoliciesFromXml. xmlPipeSizeUnit = " + xmlPipeSizeUnit);
-#if (CONFIG_R2019 || CONFIG_R2020)
-            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(UnitType.UT_Piping_Roughness);
-            
-            string docRoughnessUnit = formatOptionRoughness.DisplayUnits.ToString();
-#else
+
+#if (RVT2022)
             FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
-            
-            string docRoughnessUnit = formatOptionRoughness.GetUnitTypeId().TypeId;
+            string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
+#elif (RVT2021)
+            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
+            string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
+#elif (RVT2020)
+            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(UnitType.UT_Piping_Roughness);
+            string unitStringRoughness = formatOptionPipeSize.DisplayUnits.ToString();
+#elif (RVT219)
+            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(UnitType.UT_Piping_Roughness);
+            string unitStringRoughness = formatOptionPipeSize.DisplayUnits.ToString();
+#elif (RVT218)
+            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
+            string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
+#else
 #endif
 
             string xmlRoughnessUnit = xDoc.Root.Attribute("pipeRoughnessUnits").Value;
             //Autodesk.Revit.UI.TaskDialog.Show("RoutingPreferenceBuilder", "I am in ParseAllPipingPoliciesFromXml. docRoughnessUnit = " + docRoughnessUnit);
             //Autodesk.Revit.UI.TaskDialog.Show("RoutingPreferenceBuilder", "I am in ParseAllPipingPoliciesFromXml. xmlRoughnessUnit = " + xmlRoughnessUnit);
 
-            if (docRoughnessUnit != xmlRoughnessUnit)
+            if (unitStringRoughness != xmlRoughnessUnit)
                 throw new RoutingPreferenceDataException("Units from XML do not match current pipe roughness units.");
             //if (m_document.IsModifiable) { Autodesk.Revit.UI.TaskDialog.Show("RoutingPreferenceBuilder", "I am in ParseAllPipingPoliciesFromXml. Document IS modifiable"); }
             //if (m_document.IsReadOnly) { Autodesk.Revit.UI.TaskDialog.Show("RoutingPreferenceBuilder", "I am in ParseAllPipingPoliciesFromXml. Document is IsReadOnly"); }
@@ -228,27 +247,6 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
             XElement xroot = new XElement(XName.Get("RoutingPreferenceBuilder_ruleIndex"));
 
 
-            /*#if(CONFIG_R2019 || CONFIG_R2020)
-                        FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
-                        string unitStringPipeSize = formatOptionPipeSize.DisplayUnits.ToString();
-            #else
-                        FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
-                        string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
-            #endif
-                        xroot.Add(new XAttribute(XName.Get("pipeSizeUnits"), unitStringPipeSize));
-
-            #if (CONFIG_R2019 || CONFIG_2020)
-
-                        FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(UnitType.UT_Piping_Roughness);
-                        string unitStringRoughness = formatOptionRoughness.DisplayUnits.ToString();
-            #else
-                        FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
-                        string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
-            #endif*/
-
-            //FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
-            //string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
-
 #if RVT2022
             FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
             string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
@@ -256,14 +254,14 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
             FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
             string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
 #elif RVT2020
-            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
-            string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.DisplayUnits.ToString();
 #elif RVT2019
-            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
-            string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.DisplayUnits.ToString();
 #elif RVT2018
-            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipeSize);
-            string unitStringPipeSize = formatOptionPipeSize.GetUnitTypeId().TypeId;
+            FormatOptions formatOptionPipeSize = m_document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
+            string unitStringPipeSize = formatOptionPipeSize.DisplayUnits.ToString();
 #else
 #endif
             xroot.Add(new XAttribute(XName.Get("pipeSizeUnits"), unitStringPipeSize));
@@ -276,14 +274,14 @@ namespace Revit.SDK.Samples.RoutingPreferenceTools.CS
             FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
             string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
 #elif (RVT2020)
-            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
-            string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
+            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(UnitType.UT_Piping_Roughness);
+            string unitStringRoughness = formatOptionPipeSize.DisplayUnits.ToString();
 #elif (RVT219)
-            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
-            string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
+            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(UnitType.UT_Piping_Roughness);
+            string unitStringRoughness = formatOptionPipeSize.DisplayUnits.ToString();
 #elif (RVT218)
-            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(SpecTypeId.PipingRoughness);
-            string unitStringRoughness = formatOptionRoughness.GetUnitTypeId().TypeId;
+            FormatOptions formatOptionRoughness = m_document.GetUnits().GetFormatOptions(UnitType.UT_Piping_Roughness);
+            string unitStringRoughness = formatOptionPipeSize.DisplayUnits.ToString();
 #else
 #endif
             xroot.Add(new XAttribute(XName.Get("pipeRoughnessUnits"), unitStringRoughness));

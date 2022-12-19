@@ -216,7 +216,7 @@ namespace Utility
         public static double ConvertValueDocumentUnits(double decimalFeet, Autodesk.Revit.DB.Document document)
         {
 
-#if(CONFIG_R2019 || CONFIG_R2020)
+#if(RVT2019 || RVT2020)
             FormatOptions formatOption = document.GetUnits().GetFormatOptions(UnitType.UT_PipeSize);
          return UnitUtils.ConvertFromInternalUnits(decimalFeet, formatOption.DisplayUnits);
 #else

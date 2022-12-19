@@ -1,5 +1,4 @@
 ﻿using Autodesk.Revit.DB;
-using Autodesk.Revit.DB.Mechanical;
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.UI;
 using DocumentFormat.OpenXml;
@@ -34,9 +33,10 @@ namespace KDS_Module_Vx
             //return Result.Succeeded;
 
             // Lists for Headers in Excel File. Divided into categories based on type of parameter //
-            List<string> elm_hdr_lst = new List<string> { "ElementID", "Family", "Type" };
-            List<string> fam_hdr_lst = new List<string> { "System Classification", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart", "Category", "Size", "Length", "System Type" };
-            List<string> calc_hdr_lst = new List<string> { "Is Vertical", "Is Underground", "Is Insulated", "Insulation Name","Level", "Diameter", "System Name" };
+            List<string> elm_hdr_lst = new List<string> { "ElementID", "Family", "Type", "Phase" };
+            List<string> fam_hdr_lst = new List<string> { "System Classification", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart",
+                                                         "Label", "Category", "Size", "Length", "System Type" };
+        List<string> calc_hdr_lst = new List<string> { "Is Vertical", "Is Underground", "Is Insulated", "Insulation Name", "Level", "Diameter", "System Name" };
 
             #region // Get Lowest Level
             // Get Lowest Level Point so i can find out if an Element is underground.
@@ -341,11 +341,29 @@ namespace KDS_Module_Vx
         #endregion  // End Of exportToExcel_func
 
 
-
+        public string ShowPhaseCreatedName(Element element)
+        {
+            if (element == null) { return "NA"; }
+            // Get the Phase Create property, and assert it should not be null
+            Autodesk.Revit.DB.Phase phaseCreated = element.Document.GetElement(element.CreatedPhaseId) as Phase;
+            if (null == phaseCreated)
+            {
+                return "NA";
+            }
+            else
+            {
+                // Show the Phase Create name to the user.
+                //String prompt = "The phase created is: " + phaseCreated.Name;
+                return phaseCreated.Name;  // TaskDialog.Show("Revit", prompt);
+            }
+        }
 
         #region // exportToExcel_func   
         public void exportToExcel_func(UIDocument uiDoc, List<Level> sortedLevels_lst, List<string> elm_hdr_lst, List<string> famHdrList, List<string> calc_hdr_lst, List<est_data_class> KDSEstData_Pipe_lst)
         {
+
+            Autodesk.Revit.DB.Document actvDoc = uiDoc.Document;
+
             // User Chose Export to Excel Option  //
             #region  //  Initialization and Definitions
 
@@ -362,7 +380,7 @@ namespace KDS_Module_Vx
             hdrList.AddRange(calc_hdr_lst);   // List of Calculated Values such as is Vertical or IsUnderground etc
 
             // Initialization of Output Excel Sheet Template to Write Our Data to//
-            
+
             //string filePath = "C:\\Users\\KDS-EST-3\\Desktop\\Excel_Files\\Elements.xltm";   //// move this to be an input param to this function.//
             string filePath = "C:\\Users\\KDS-EST-3\\Desktop\\Excel_Files\\test.xlsm";   //// move this to be an input param to this function.//
             string sheetName = "importedData";
@@ -375,13 +393,16 @@ namespace KDS_Module_Vx
             List<List<string>> rc_data = new List<List<string>>();
 
             // Adding Pipe data to rc_data
-            foreach (Pipe pipe in pipes) 
+            foreach (Pipe pipe in pipes)
             {
                 // I left these defined here for debugging purpose.  i will roll into rc_data.Add directly to save on creating them in every loop
-            
+
                 string id = pipe.Id.ToString();
                 string name = pipe.Name;
                 string getTypeName = pipe.GetType().Name;
+                //string getPhase = ""; if (pipe.get_Parameter(BuiltInParameter.VIEW_PHASE) != null) { getPhase = pipe.get_Parameter(BuiltInParameter.VIEW_PHASE).AsValueString(); }
+                string getPhase = ShowPhaseCreatedName(actvDoc.GetElement(pipe.Id));
+
                 string getSysClassName = ""; if (pipe.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM) != null) { getSysClassName = pipe.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString(); }
 
                 string id1 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_MCAA_LBR_RATE");
@@ -389,6 +410,7 @@ namespace KDS_Module_Vx
                 string id3 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_HPH");
                 string id4 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_MfrList");
                 string id5 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_MfrPart");
+                string id6 = "NA";  //  Type Mark (Labels)
 
                 string getElemCatName = pipe?.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM)?.AsValueString();
                 string size = pipe?.LookupParameter("Size")?.AsString();
@@ -407,12 +429,16 @@ namespace KDS_Module_Vx
                     id,
                     name,
                     getTypeName,
+                    getPhase,
+
                     getSysClassName,
                     id1,
                     id2,
                     id3,
                     id4,
                     id5,
+                    id6,   // Type Mark (Labels)
+
                     getElemCatName,
                     size,
                     length,
@@ -431,66 +457,121 @@ namespace KDS_Module_Vx
             #region // Adding Pipe Fitting Data to rc_data
             foreach (FamilyInstance Fitt in fittings_lst)
             {
-                /*
-                string mcaa_lbr_rate = Fitt?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA";
-                string lbr_rate = Fitt?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA";
-                string hph = Fitt?.LookupParameter("KDS_HPH")?.AsString() ?? "NA";
-                string mfrList = Fitt?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA";
-                string mfrPart = Fitt?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA";
+                string id = Fitt?.Id?.ToString() ?? "NA";
+                string name = Fitt?.Symbol?.Family?.Name ?? "NA";
+                string getTypeName = Fitt?.GetType()?.Name ?? "Na";
+                string getPhase = Fitt?.get_Parameter(BuiltInParameter.PHASE_NAME)?.AsString() ?? "NA";
+
+                string getSysClassName = Fitt?.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM)?.AsString() ?? "NA";
+                string id1 = Fitt?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA";
+                string id2 = Fitt?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA";
+                string id3 = Fitt?.LookupParameter("KDS_HPH")?.AsString() ?? "NA";
+                string id4 = Fitt?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA";
+                string id5 = Fitt?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA";
+                string id6 = "NA";  // Type Mark (Labels)
+
+                string getElemCatName = Fitt?.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM)?.AsValueString() ?? "NA";
                 string size = Fitt?.LookupParameter("Size")?.AsString() ?? "NA";
-*/
+                string length = "NA";
+                string getPipeSysTypeName = Fitt?.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)?.AsValueString() ?? "NA";
+                string isVertical = "NA";
+                string isUnderground = "NA";
+                string isInsulated = "NA";
+                string insulationMtrlName = "NA";  //"NA" ,
+                string getLevel = GetInstanceLevel(uiDoc, Fitt) ?? "NA";
+                string diam = "NA";
+                string MEPSysName = Fitt?.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM)?.AsString() ?? "NA";
+
                 rc_data.Add(new List<string>
                 {
-                    Fitt.Id.ToString(),
-                    Fitt.Symbol.Name,
-                    Fitt.GetType().Name,
-                    Fitt.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString(),
-                    Fitt?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA",
-                    Fitt?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA",
-                    Fitt?.LookupParameter("KDS_HPH")?.AsString() ?? "NA",
-                    Fitt?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA",
-                    Fitt?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA",
-                    Fitt.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM).AsValueString(),
-                    Fitt?.LookupParameter("Size")?.AsString() ?? "NA",
-                    "NA",
-                    Fitt.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString(),
-                    "NA",   // Is Vertical
-                    "NA",  // Is Underground
-                    "NA",  // Is Insulated
-                    "NA",  // Insulationa Material Name
-                    GetInstanceLevel(uiDoc, Fitt),
-                    "NA",
-                    Fitt.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString(),
+                   id,
+                    name,
+                    getTypeName,
+                    getPhase,
+
+                    getSysClassName,
+                    id1,
+                    id2,
+                    id3,
+                    id4,
+                    id5,
+                    id6,   // Type Mark (Labels)
+
+                    getElemCatName,
+                    size,
+                    length,
+                    getPipeSysTypeName,
+                    isVertical,
+                    isUnderground,
+                    isInsulated,
+                    insulationMtrlName,
+                    getLevel,
+                    diam,
+                    MEPSysName,
                     });
             }
             #endregion // End Of Adding Pipe Fitting Data to rc_data
 
 
             #region // Adding Plumbing Fixture data to rc_data
-            foreach (FamilyInstance fixt in fixtures_lst)
+            foreach (FamilyInstance Fixt in fixtures_lst)
             {
+
+
+
+                string id = Fixt.Id.ToString();
+                string name = Fixt.Symbol.Name;
+                string getTypeName = Fixt.GetType().Name;
+                string getPhase = Fixt?.get_Parameter(BuiltInParameter.VIEW_PHASE)?.AsValueString() ?? "NA";
+
+                string getSysClassName = Fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString();
+                //string getPhase = ShowPhaseCreatedName(actvDoc.GetElement(id));
+                string id1 = Fixt?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA";
+                string id2 = Fixt?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA";
+                string id3 = Fixt?.LookupParameter("KDS_HPH")?.AsString() ?? "NA";
+                string id4 = Fixt?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA";
+                string id5 = Fixt?.LookupParameter("KDS_MfrPart")?.AsValueString() ?? "NA";
+                string id6 = Fixt?.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString() ?? "NA";    //  Type Mark (Labels)
+
+                string getElemCatName = Fixt.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM).AsValueString();
+                string size = "NA";
+                string length = "NA";
+                string getPipeSysTypeName = Fixt.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString();
+                string isVertical = "NA";   // Is Vertical
+                string isUnderground = "NA";  // Is Underground
+                string isInsulated = "NA";  // Is Insulated
+                string insulationMtrlName = "NA";  // Insulationa Material Name
+                string getLevel = "NA";
+                string diam = "NA";
+                string MEPSysName = Fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString();
+
+
                 rc_data.Add(new List<string>
                 {
-                    fixt.Id.ToString(),
-                    fixt.Symbol.Name,
-                    fixt.GetType().Name,
-                    fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString(),
-                    fixt?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA",
-                    fixt?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA",
-                    fixt?.LookupParameter("KDS_HPH")?.AsString() ?? "NA",
-                    fixt?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA",
-                    fixt?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA",
-                    fixt.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM).AsValueString(),
-                    "NA",
-                    "NA" ,
-                    fixt.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString(),
-                     "NA",   // Is Vertical
-                    "NA",  // Is Underground
-                    "NA",  // Is Insulated
-                    "NA",  // Insulationa Material Name
-                    GetInstanceLevel(uiDoc, fixt),
-                    "NA",
-                    fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString(),
+                    id,
+                    name,
+                    getTypeName,
+                    getPhase,
+
+                    getSysClassName,
+                    id1,
+                    id2,
+                    id3,
+                    id4,
+                    id5,
+                    id6,   // Type Mark (Labels)
+
+                    getElemCatName,
+                    size,
+                    length,
+                    getPipeSysTypeName,
+                    isVertical,
+                    isUnderground,
+                    isInsulated,
+                    insulationMtrlName,
+                    getLevel,
+                    diam,
+                    MEPSysName,
                     });
             }   // foreach fixt
             #endregion // Adding Plumbing Fixture data to rc_data
@@ -504,12 +585,16 @@ namespace KDS_Module_Vx
                     PipeAcce.Id.ToString(),
                     PipeAcce.Symbol.Name,
                     PipeAcce.GetType().Name,
+                    PipeAcce?.get_Parameter(BuiltInParameter.VIEW_PHASE)?.AsValueString() ?? "NA",
+
                     PipeAcce.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString(),
                     PipeAcce?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA",
                     PipeAcce?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA",
                     PipeAcce?.LookupParameter("KDS_HPH")?.AsString() ?? "NA",
                     PipeAcce?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA",
                     PipeAcce?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA",
+                    PipeAcce.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString()?? "NA",    // Type Mark (Label)
+
                     PipeAcce.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM).AsValueString(),
                     "NA" ,
                     "NA" ,
@@ -530,7 +615,7 @@ namespace KDS_Module_Vx
             CreateXL_macro(filePath, sheetName, startRow, startCol, rc_data, hdrList);
 
 
-            
+
 
         }  // End of exportToExcel_func
         #endregion  // End Of exportToExcel_func
@@ -573,7 +658,7 @@ namespace KDS_Module_Vx
 
 
 
-       
+
         #region   // get_Pipe_KDSParams    Returns the parameter value of a KDS Parameter from KDS_pipe Supplier files
         // I need a file for pipes only that i will read anf get this info from.
         //This file should be always available with each run.
@@ -588,12 +673,12 @@ namespace KDS_Module_Vx
             string mfrList = pipe?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA";
             string mfrPart = pipe?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA";
             string size = pipe?.LookupParameter("Size")?.AsString() ?? "NA";
-            
-            est_data_class result = KDSEstData_Pipe_lst.Find(edc => edc.famName == pipe.Name && edc.Size == size.Remove(size.Length-1,1));
+
+            est_data_class result = KDSEstData_Pipe_lst.Find(edc => edc.famName == pipe.Name && edc.Size == size.Remove(size.Length - 1, 1));
 
 
-           
-            return result?[kdsParamName]?.ToString()?? "NA";
+
+            return result?[kdsParamName]?.ToString() ?? "NA";
 
         }   // End Of get_Pipe_KDSParams
         #endregion  // End Of get_Pipe_KDSParams    Returns the parameter value of a KDS Parameter from KDS_pipe Supplier files
@@ -681,7 +766,7 @@ namespace KDS_Module_Vx
             double zLocEnd = c.GetEndPoint(1).Z;
             double zLocMiddle = (zLocStart + zLocEnd) / 2;
 
-           
+
             #region // User wants Z-Coordinate of Start EndPoint for Pipe //
 
             if (startEndMiddle == "start" || startEndMiddle == "Start")
@@ -756,12 +841,12 @@ namespace KDS_Module_Vx
             double zLocMiddle = (zLocStart + zLocEnd) / 2;
 
 
-           // User wants Z-Coordinate of Start EndPoint for Pipe //
-           if (startEndMiddle == "start" || startEndMiddle == "Start")
+            // User wants Z-Coordinate of Start EndPoint for Pipe //
+            if (startEndMiddle == "start" || startEndMiddle == "Start")
             {
                 return zLocStart;
             }
-           
+
             // User wants Z-Coordinate of End Endpoint for Pipe //
             if (startEndMiddle == "end" || startEndMiddle == "End")
             {
@@ -772,7 +857,7 @@ namespace KDS_Module_Vx
             {
                 return zLocMiddle;
             }
-            
+
             else { TaskDialog.Show("error", "value for startEndMiddle is not \"start\", \"end\", or \"middle\""); }
 
             return 9999.9;
@@ -932,7 +1017,7 @@ namespace KDS_Module_Vx
 
 
         #region // IsUnderground Function to determine whether a Pipe is vertical or not //
-        public string IsUnderground( List<Level> sortedLevels_lst, Pipe pipe)
+        public string IsUnderground(List<Level> sortedLevels_lst, Pipe pipe)
         {
 
             // if System Name has "_BG_" in it.  return yes
@@ -952,9 +1037,9 @@ namespace KDS_Module_Vx
                     return "No";
                 }
             }
-            
+
             return "NA";
-            
+
         }  // End Of IsUnderground
         #endregion  // End Of IsUnderground
 
@@ -966,19 +1051,16 @@ namespace KDS_Module_Vx
 
             //return Autodesk.Revit.DB.InsulationLiningBase.GetInsulationIds(actvDoc, pipeId).Count == 0 ? "No" : "Yes";
             //return Autodesk.Revit.DB.InsulationLiningBase.GetInsulationIds(actvDoc, pipeId).Count == 0 ? "No" : Autodesk.Revit.DB.InsulationLiningBase.GetInsulationIds(actvDoc, pipeId).FirstOrDefault().ToString();
-            var pipeInsulation = InsulationLiningBase
-            .GetInsulationIds(pipe.Document, pipe.Id)
-            .Select(pipe.Document.GetElement)
-            .OfType<PipeInsulation>()
-            .FirstOrDefault();
             double thickness = 0.0;
             
+            var pipeInsulation = InsulationLiningBase.GetInsulationIds(pipe.Document, pipe.Id).Select(pipe.Document.GetElement).OfType<PipeInsulation>().FirstOrDefault();
+
             if (pipeInsulation != null)
             {
                 thickness = pipeInsulation.Thickness;
                 if (thickness > 0) { return (thickness * 12).ToString(); }
             }
-            return "NA";
+            return "No";
             //return pipeInsulation?.Thickness == 0.0 ? "No" : pipeInsulation.Thickness.ToString();
         }  // End Of IsInsulated
         #endregion  // End Of IsInsulated
@@ -1008,21 +1090,21 @@ namespace KDS_Module_Vx
 
                 PipeInsulationType pipeInsulationType = doc.GetElement(pipeInsulation.GetTypeId()) as PipeInsulationType;
 
-                Autodesk.Revit.DB.Parameter paramInsulMatrl = pipeInsulationType?.GetParameters("Material").FirstOrDefault()?? null;
+                Autodesk.Revit.DB.Parameter paramInsulMatrl = pipeInsulationType?.GetParameters("Material").FirstOrDefault() ?? null;
 
                 if (paramInsulMatrl != null)
                 {
                     material = doc.GetElement(paramInsulMatrl.AsElementId()) as Material;
-                    return material?.Name??"NA"  ;
+                    return material?.Name ?? "NA";
                 }
                 else
-                return material?.Name?? "NA";
+                    return material?.Name ?? "NA";
 
             }
 
 
 
-            
+
 
         }  // End Of InsulationMatrlName
         #endregion  // End Of InsulationMatrlName
@@ -1358,7 +1440,7 @@ namespace KDS_Module_Vx
                 edc_cnt++;
                 tds_edc += "\n " + edc_cnt + "- Formatted Data: " + est_data_class.ToCsvString_wfname();
             }
-           // TaskDialog.Show("Csv_to_DB", tds_edc + "\n\n\n\n\n\n\n\n\n");
+            // TaskDialog.Show("Csv_to_DB", tds_edc + "\n\n\n\n\n\n\n\n\n");
 
             return est_data_class_lst;
         }// End of get_KDSEstData_Pipe

@@ -7,3 +7,5 @@ C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS
 C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.csproj.CopyComplete
 C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.dll
 C:\Users\KDS-EST-3\source\repos\KDS_Module_Vx\Source\KDS_Module_Vx\obj\Debug\KDS_Module_Vx.pdb
+C:\BIM\KDS_ADDIN\Addin\RVT2020\KDS_Module_Vx.dll
+C:\BIM\KDS_ADDIN\Addin\RVT2020\KDS_Module_Vx.pdb
