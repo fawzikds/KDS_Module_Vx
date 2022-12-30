@@ -2,14 +2,12 @@
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
-
-using KDS_Module;
 using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection.Emit;
 using System.Windows.Forms;
 
 
@@ -66,7 +64,7 @@ namespace KDS_Module_Vx
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;
             UIApplication uiApp = commandData.Application;
             Autodesk.Revit.ApplicationServices.Application app = uiApp.Application;
-            List<Point> sleevesLocPnt_lst = new List<Point>();
+            List<Autodesk.Revit.DB.Point> sleevesLocPnt_lst = new List<Autodesk.Revit.DB.Point>();
             #endregion  // Some Definitions
 
             #region   // Get Family of Sleeves and List of all Pipes in Host Doc.sleevesLocPnt_lst
@@ -81,31 +79,62 @@ namespace KDS_Module_Vx
             string insTh_str = null;
 
 
-            // Third Itiration - use Modeless form
-            //insertSleeve_frm_CL insertSleeve_frm = new insertSleeve_frm_CL();
-            //insertSleeve_frm.doc = uiDoc.Document;   //  insertSleeve_frm_CL.doc is declared in insertSleeve_frm_CL.cs
-            //insertSleeve_frm.Show();
-
-            //return Result.Succeeded;
-
-
-
-            // Get a List of All Pipes that are Vertical and within 2" and 6" size
+            // Get a List of All Pipes 
             FilteredElementCollector pipeCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Pipe));
             List<Pipe> pipes_lst = pipeCollector.Cast<Pipe>().ToList();
-            // Here we will get all pipes with overall size less than (0.5) 6" since after you add the 1" gap to the sleeve, you get 8", and they do not make sleeves larger than 8".
+
+            #region // Debub only  -- ommited
+            /*string inThStr = "Pipe Diam || Ins_dbl || overallSize_dbl ||\n";
+            foreach (Pipe pipe in pipes_lst)
+            {
+                inThStr += pipe.Diameter * 12.0 + "||" +
+                     get_PipeInsulationThickness(pipe) * 12.0 + "||" +
+                     get_PipeOverallSize(pipe) * 12.0 + "||" +
+                    "\n";
+            }
+            TaskDialog.Show("insertSleeve", inThStr);*/
+            #endregion // Debug only 
+
+            //Get all Pipes that are of an overall diameter + insulation Size within 2" and 6" size
+            // Here we will get all pipes with overall size less than (0.5') 6" since after you add the 1" gap to the sleeve, you get 8",
+            // and they do not make sleeves larger than 8".
             // Talking to draino, he says just put 2" Sleeves anyways, for pipes with over all size Less than 2".
             // So This will be added during the creation of the Sleeves. anything less than 2" overall size will get a 2" Sleeve.
-            //List<Pipe> pipes_size_lst = pipes_lst.Where(p => p.Diameter > 0.146 && p.Diameter < .667).ToList<Pipe>();
-            List<Pipe> pipes_size_lst = pipes_lst.Where(p => p.Diameter <= 0.5).ToList<Pipe>();
+            //List<Pipe> pipes_OAsize_dbl_lst = pipes_lst.Where(p => get_PipeOverallSize(p) > 0.146 && get_PipeOverallSize(p) < 0.5).ToList();
+            List<Pipe> pipes_OAsize_dbl_lst = pipes_lst.Where(p => get_PipeOverallSize(p) < 0.5).ToList();
 
-            List<Pipe> pipes_size_slope_lst = pipes_size_lst.Where(p => IsVertical(p)).ToList<Pipe>();
-            TaskDialog.Show("insertSleeve",
-                "                          All Available Pipes Count: " + pipes_lst.Count +
-               //"\n        Pipes of size between 2 and 6 inches Count: " + pipes_size_lst.Count +
-               "\n            Pipes of OverallSize Less Than or equal to 6 inches Count: " + pipes_size_lst.Count +
-               "\n Pipes of correct size and Sloped vertically Count: " + pipes_size_slope_lst.Count +
-               "\n\n\n\n\n\n\n\n\n\n\n\n\n");
+            #region // Debug Only -- ommited
+            /*            string inThStr0 = "Pipe Diam || Ins_dbl || overallSize_dbl ||\n";
+
+                        foreach (Pipe pipe in pipes_OAsize_dbl_lst)
+                        {
+                            inThStr0 += pipe.Diameter * 12.0 + "||" +
+                                 get_PipeInsulationThickness(pipe) * 12.0 + "||" +
+                                 get_PipeOverallSize(pipe) * 12.0 + "||" +
+                                "\n";
+                        }
+                        TaskDialog.Show("insertSleeve", inThStr0);*/
+            #endregion // End Of Debug Only -- ommited
+
+
+            // Get pipes that are Vertical
+            List<Pipe> pipes_size_slope_lst = pipes_OAsize_dbl_lst.Where(p => IsVertical(p)).ToList<Pipe>();
+
+
+            #region // Debug Only -- ommited
+            string inThStr2 = "Pipe Diam || Ins_dbl || overallSize_dbl ||\n";
+
+            foreach (Pipe pipe in pipes_size_slope_lst)
+            {
+                inThStr2 += pipe.Diameter * 12.0 + "||" +
+                     get_PipeInsulationThickness(pipe) * 12.0 + "||" +
+                     get_PipeOverallSize(pipe) * 12.0 + "||" +
+                    "\n";
+            }
+            TaskDialog.Show("insertSleeve", inThStr2);
+            #endregion // End Of Debug Only -- ommited
+
+
             #endregion   // Get Family of Sleeves and List of all Pipes in Host Doc.
 
 
@@ -201,8 +230,6 @@ namespace KDS_Module_Vx
 
                     FilteredElementCollector lnkdDocFlr_col = new FilteredElementCollector(actvDoc).OfClass(typeof(Floor));  //FLOOR_PARAM_IS_STRUCTURAL
                     lnkdDocFlr_lst = hostDoc_floors_col.Cast<Floor>().ToList();
-
-
                 }
 
                 else if (dialogResult == DialogResult.No)
@@ -333,54 +360,41 @@ namespace KDS_Module_Vx
                                 setSleeveParam_trx.Start();
                                 try
                                 {
-                                    // // Set failure handler  .. this is to handle me writing the same value in the Mark parameter which i gues, is not expected.
+                                    // Set failure handler  .. this is to handle me writing the same value in the Mark parameter which i guess, is not expected.
                                     var failureOptions = setSleeveParam_trx.GetFailureHandlingOptions();
                                     failureOptions.SetFailuresPreprocessor(new FailurePreproccessor());
                                     setSleeveParam_trx.SetFailureHandlingOptions(failureOptions);
 
                                     //TaskDialog.Show("insertSleeve", " Just Disabled Warnings on Duplicate Mark Values");
 
-                                    //Parameter prm = _p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
-                                    //double p_diam = p.get_Parameter(BuiltInParameter.RBS_PIPE_DIAMETER_PARAM).AsDouble();
-                                    //if (p_diam >= 0.41665 && p_diam <= .41668) { p_diam = 0.5; }
-
-                                    Parameter OverallSize_p = p.get_Parameter(BuiltInParameter.RBS_REFERENCE_OVERALLSIZE);  //  Gets the sum of the Pipe Diameter and the Insulation Thickness if any
-
-                                    string overallSize_st = OverallSize_p.AsValueString().Remove(OverallSize_p.AsValueString().Length - 1);
-                                    /*                                    TaskDialog.Show("insertSleeve", " \n Name: " + OverallSize_p.Definition.Name +
-                                                                             // "\n AsDouble: " + flrTh_dict[ OverallSize_p.AsValueString()] +
-                                                                             "\n AsDouble: " + OverallSize_p.AsDouble() * 100 +
-                                                                             "\n ValueString: " + overallSize_st
-                                                                             ); 
-                                    */
-
-                                    double slv_diam_dbl = (flrTh_dict[overallSize_st] +1.0)/12;   // Add 2" (.167') Gap to Sleeves (1" gap per radius) 
+                                    //Parameter OverallSize_p = p.get_Parameter(BuiltInParameter.RBS_REFERENCE_OVERALLSIZE);  //  Gets the sum of the Pipe Diameter and the Insulation Thickness if any
+                                    double OverallSize_dbl = get_PipeOverallSize(p);
+                                    TaskDialog.Show("insertSleeve", " OverallSize: " + OverallSize_dbl);
 
                                     double slv_diam_dbl_adj = 0.167;
 
-                                    if (slv_diam_dbl < .16) { slv_diam_dbl_adj = 0.167; }   // For Less than 2" => 2"   
-                                    if (slv_diam_dbl > .16 && slv_diam_dbl < 0.251)   { slv_diam_dbl_adj = 0.25;  }   // For Between 2" and 3" => 3"
-                                    if (slv_diam_dbl > 0.25 && slv_diam_dbl < 0.335)  { slv_diam_dbl_adj = 0.334; }   // For Between 3" and 4" => 4"
-                                    if (slv_diam_dbl > 0.334 && slv_diam_dbl < 0.417) { slv_diam_dbl_adj = 0.416; }   // for between 4" and 5" => 5"
-                                    if (slv_diam_dbl > 0.416 && slv_diam_dbl < 0.51)  { slv_diam_dbl_adj = 0.5;   }   // for between 5" and 6" => 6"
-                                    if (slv_diam_dbl > 0.5 && slv_diam_dbl < 0.584)   { slv_diam_dbl_adj = 0.583; }   // for between 6" and 7" => 7"
-                                    if (slv_diam_dbl > 0.583 && slv_diam_dbl < 8.1/12) { 
-                                        slv_diam_dbl_adj = 8.0/12; }   // for between 7" and 8" => 8"
+                                    if (OverallSize_dbl < 1.9/12) { slv_diam_dbl_adj = 2.0/12 ; }          // For  than 2" => 2"   
+                                    if (OverallSize_dbl > 1.9/12 && OverallSize_dbl < 2.4/12) { slv_diam_dbl_adj = 4/12; }   // For Between 2" and 3" => 3"
+                                    if (OverallSize_dbl > 2.4 / 12 && OverallSize_dbl < 2.9 / 12) { slv_diam_dbl_adj = 5 / 12; }   // For Between 2" and 3" => 3"
+                                    if (OverallSize_dbl > 2.9 / 12 && OverallSize_dbl < 3.4 / 12) { slv_diam_dbl_adj = 5 / 12; }   // For Between 2" and 3" => 3"
+                                    if (OverallSize_dbl > 3.4 / 12 && OverallSize_dbl < 4.4 / 12) { slv_diam_dbl_adj = 6 / 12; }   // For Between 2" and 3" => 3"
+                                    if (OverallSize_dbl > 4.4 / 12 && OverallSize_dbl < 5.9 / 12) { slv_diam_dbl_adj = 8 / 12; }   // For Between 2" and 3" => 3"
+                                    if (OverallSize_dbl > 5.9/ 12 && OverallSize_dbl < 6.1 / 12) { slv_diam_dbl_adj = 8 / 12; }   // For Between 2" and 3" => 3"
+                                    if (OverallSize_dbl > 6.1 / 12 ) { slv_diam_dbl_adj = 8 / 12; TaskDialog.Show("insertSleeve", "Hilti Does Not Support Sleeves Larger Than 6inch"); }   // For Between 2" and 3" => 3"
 
 
 
 
-
-                                    //TaskDialog.Show("insertSleeve", " p_diam: " + p_diam.ToString());
+                                    TaskDialog.Show("insertSleeve", " slv_diam_dbl_adj: " + slv_diam_dbl_adj);
 
                                     // Get the Diameter Parameter for the Sleeve THEN set it to the size from the relevant pipe.
                                     Parameter slv_diam = sleeve_famInst.LookupParameter("Size");
 
                                     // Set the Diameter for the Sleeve
-                                    slv_diam.Set(slv_diam_dbl_adj);
-
-                                    //TaskDialog.Show("insertSleeve", " slv_diam: " + slv_diam.AsValueString());
-
+                                    if(slv_diam.Set(slv_diam_dbl_adj) ==true)
+                                        TaskDialog.Show("insertSleeve", " Set Param slv_diam to: " + slv_diam.AsValueString());
+                                    else
+                                        TaskDialog.Show("insertSleeve", " Could NOT set Param Value slv_diam to : " + slv_diam.AsValueString());
                                     // Get the System Type  Parameter for the Sleeve THEN set it to the size from the relevant pipe.
                                     Parameter p_SysType = p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
                                     //TaskDialog.Show("insertSleeve", " p_SysType: " + p_SysType.AsValueString());
@@ -503,7 +517,7 @@ namespace KDS_Module_Vx
 #if RVT2020
                 #region // Get a floor type for floor creation 2020
                 floorType = new FilteredElementCollector(actvDoc).OfClass(typeof(FloorType)).First(e => e.Name.Equals("Generic - 12\"")) as FloorType;   //For Revit 2021 and older
-      
+
                 // The normal vector (0,0,1) that must be perpendicular to the profile.
                 XYZ normal = XYZ.BasisZ;
 
@@ -718,6 +732,110 @@ namespace KDS_Module_Vx
             return intersectionResult;
         }
         #endregion
+
+        #region  // Get Pipe OverallSize Based on:
+        //https://thebuildingcoder.typepad.com/blog/2021/10/sci-fi-languages-and-pipe-insulation-retrieval.html#2
+        //Fatest get inuslation metthod by 
+        //Alexander @aignatovich @CADBIMDeveloper Ignatovich, aka Александр Игнатович,
+        double get_PipeOverallSize(Pipe currPipe)
+        {
+            Document currPipe_doc = currPipe.Document;
+            ElementId currPipe_id = currPipe.Id;
+            var pipeInsulation = InsulationLiningBase.GetInsulationIds(currPipe_doc, currPipe_id).Select(currPipe_doc.GetElement).OfType<PipeInsulation>().FirstOrDefault();
+            double overallSize_dbl = pipeInsulation?.Thickness ?? 0.0;   // if null set to 0.0
+            return (overallSize_dbl * 2.0 + currPipe.Diameter);
+        }
+        #endregion  // End Of Get Pipe OverallSize Based on
+
+        #region  // Get Pipe insulation Thickness Method 2 --- Fastest--- per:
+        //https://thebuildingcoder.typepad.com/blog/2021/10/sci-fi-languages-and-pipe-insulation-retrieval.html#2
+        //Alexander @aignatovich @CADBIMDeveloper Ignatovich, aka Александр Игнатович,
+        double get_PipeInsulationThickness(Autodesk.Revit.DB.Plumbing.Pipe currPipe)
+        {
+            // Very Slow Metthod of Gettting Pipe insulation:
+            // var pipeInsulation = pipe.GetDependentElements(new ElementClassFilter(typeof(PipeInsulation))).Select(pipe.Document.GetElement).Cast<PipeInsulation>().FirstOrDefault();
+            Document currPipe_doc = currPipe.Document;
+            ElementId currPipe_id = currPipe.Id;
+            // Much Faster Metthod of Gettting Pipe insulation:
+            var pipeInsulation = InsulationLiningBase.GetInsulationIds(currPipe_doc, currPipe_id).Select(currPipe_doc.GetElement).OfType<PipeInsulation>().FirstOrDefault();
+            double th = pipeInsulation?.Thickness ?? 0.0;
+
+            return th;
+        }
+        #endregion  // Get Pipe insulation Thickness Method 2 --- Fastest--- per:
+
+        #region  // Get Pipe insulation Method 2 --- Fastest--- per:
+        //https://thebuildingcoder.typepad.com/blog/2021/10/sci-fi-languages-and-pipe-insulation-retrieval.html#2
+        //Alexander @aignatovich @CADBIMDeveloper Ignatovich, aka Александр Игнатович,
+        PipeInsulation get_PipeInsulation(Autodesk.Revit.DB.Plumbing.Pipe currPipe)
+        {
+            // Very Slow Metthod of Gettting Pipe insulation:
+            // var pipeInsulation = pipe.GetDependentElements(new ElementClassFilter(typeof(PipeInsulation))).Select(pipe.Document.GetElement).Cast<PipeInsulation>().FirstOrDefault();
+            Document currPipe_doc = currPipe.Document;
+            ElementId currPipe_id = currPipe.Id;
+            // Much Faster Metthod of Gettting Pipe insulation:
+            var pipeInsulation = InsulationLiningBase.GetInsulationIds(currPipe_doc, currPipe_id).Select(currPipe_doc.GetElement).OfType<PipeInsulation>().FirstOrDefault();
+
+
+            return pipeInsulation as PipeInsulation;
+        }
+
+        #endregion  // End Of Get Pipe insulation 2 Methods per
+
+        #region  // Get Pipe insulation Method 1 --- Slow ---
+        /// <summary>
+        /// Return pipe insulation for given pipe using 
+        /// filtered element collector and HostElementId
+        /// property or InsulationLiningBase 
+        /// GetInsulationIds method.
+        /// </summary>
+        PipeInsulation GetPipeInslationFromPipe(
+          Pipe pipe)
+        {
+            if (pipe == null)
+            {
+                throw new ArgumentNullException("pipe");
+            }
+
+            Document doc = pipe.Document;
+
+            // Filtered element collector and HostElementId
+
+            FilteredElementCollector fec
+              = new FilteredElementCollector(doc)
+                .OfClass(typeof(PipeInsulation));
+
+            PipeInsulation pipeInsulation = null;
+
+            foreach (PipeInsulation pi in fec)
+            {
+                // Find the first insulation
+                // belonging to the given pipe
+
+                if (pi.HostElementId == pipe.Id)
+                {
+                    pipeInsulation = pi;
+                    break;
+                }
+            }
+
+#if DEBUG
+            // InsulationLiningBase.GetInsulationIds method
+            // returns all pipe insulations for a given pipe
+
+            ICollection<ElementId> pipeInsulationIds
+              = InsulationLiningBase.GetInsulationIds(
+                doc, pipe.Id);
+
+            Debug.Assert(
+              pipeInsulationIds.Contains(pipeInsulation.Id),
+              "expected InsulationLiningBase.GetInsulationIds"
+              + " to include pipe insulation element id");
+#endif // DEBUG
+
+            return pipeInsulation;
+        }
+        #endregion  // End of Get Pipe insulation Method 1 --- Slow --- 
 
         #region // IsVertical Function to declare given pipe as vertical or not //
         public bool IsVertical(Pipe p)
@@ -1162,7 +1280,7 @@ namespace KDS_Module_Vx
 
 
         #region // Find if XYZ is in a List of XYZ with a tolerance using IEnumerale 
-        // Check if and xyz point is in a list of points.
+        // Check if an xyz point is "found" in a some list of points. "found" here means within +/- xyz_rng.
         // The xyz_rng cannot have 0 in it otherwise autodesk will return false results, since it is comparing decimal numbers, e.g. 0.33333333
 
         public bool isWithinRange(List<XYZ> xyz_lst, XYZ xyz_pt, XYZ xyz_rng)

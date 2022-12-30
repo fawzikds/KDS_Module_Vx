@@ -149,9 +149,9 @@ namespace KDS_Module_Vx
                         {
                             ftf_cnt++;
                             // Get RFA and CSV File Name
-                            string dstnctFamPath = get_FileNames(sharedParameter_dir, bicDstnctFam.bic_str, dstnctFam.Name, ".rfa");
-                            string csvFilePath = get_FileNames(sharedParameter_dir, bicDstnctFam.bic_str, dstnctFam.Name, ".csv");
-                            string csvFileName = get_FileNames(sharedParameter_dir, bicDstnctFam.bic_str, dstnctFam.Name, "");
+                            string dstnctFamPath = get_FilePath_Names(sharedParameter_dir, bicDstnctFam.bic_str, dstnctFam.Name, ".rfa");
+                            string csvFilePath = get_FilePath_Names(sharedParameter_dir, bicDstnctFam.bic_str, dstnctFam.Name, ".csv");
+                            string csvFileName = get_FilePath_Names(sharedParameter_dir, bicDstnctFam.bic_str, dstnctFam.Name, "");
                             //TaskDialog.Show("ImportSizeLookUpTable", "\n Document File Name : " + dstnctFamPath + "\n With csvFilePath: " + csvFilePath);
                             if (dstnctFam.IsEditable)
                             {
@@ -230,7 +230,7 @@ namespace KDS_Module_Vx
                 string famDir = famManfDir + dstnctFam.Name + "\\";                      // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI_NH\KDS_Char_CI_NH-Coupling\
                                                                                          //string file = sharedParameter_dir + "fittings\\" + folderName + "\\" + fam.Name + "\\" + fam.Name + ".rfa";   // z:\BIM\KDS_TEMPLATE\2022\fittings\KDS_Char_CI-NH\KDS_Char_CI_NH-Coupling\KDS_Char_CI_NH-Coupling.rfa
 
-                string dstnctFamFname = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".rfa");
+                string dstnctFamFname = get_FilePath_Names(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".rfa");
 
 
                 /* DEBUG  TaskDialog.Show("CreateAndFill_FamilyDirTree", "filename = " + fam.Name +
@@ -277,7 +277,7 @@ namespace KDS_Module_Vx
                 string csvRow = "";
                 // foreach (Family dstnctFam in dstnctFam_lst)
                 // {
-                string csvFile = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".csv");
+                string csvFile = get_FilePath_Names(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".csv");
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(csvFile));
                 using (var stream = System.IO.File.CreateText(csvFile))     // Opens or Creates File if it does not exist. if It exists it will overwrite its content
                 {
@@ -385,7 +385,7 @@ namespace KDS_Module_Vx
 
                     //Create CSV File Name
 
-                    string dstnctFamFname = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".csv");
+                    string dstnctFamFname = get_FilePath_Names(sharedParameter_dir, famBIC_Nm, dstnctFam.Name, ".csv");
 
                     dstnctFam_summary += " -- CSV File Name:" + dstnctFamFname;
 
@@ -643,7 +643,7 @@ namespace KDS_Module_Vx
                                 set_Lookup_param_trx.Start();
                                 try
                                 {
-                                    vlu_str = get_FileNames(sharedParameter_dir, famBIC_Nm, dstnctFamEdt.Title, "");
+                                    vlu_str = get_FilePath_Names(sharedParameter_dir, famBIC_Nm, dstnctFamEdt.Title, "");
                                     //TaskDialog.Show("Create_sharedParameter_inFamily", "Assigning Formula:" + "\n- Family Name: " + dstnctFamEdt.Title + "\n- Value: " + vlu_str + "     -||");
                                     //dstnctFamMngr.Set(tmpParam, vlu_str);
                                     dstnctFamMngr.Set(tmpParam, dstnctFamEdt.Title);   // we only need the filename without its Path nor its Extension
@@ -886,8 +886,8 @@ namespace KDS_Module_Vx
         }// end of Get_PipeFitting_FamilySymbols    
         #endregion Get_PipeFitting_FamilySymbols
 
-        #region // Get file Names
-        public string get_FileNames(string sharedParameter_dir, string bic_nm, string famName, string ext)
+        #region // Get file Names with Path 
+        public string get_FilePath_Names(string sharedParameter_dir, string bic_nm, string famName, string ext)
         {
             string folderName = null;
 
@@ -906,7 +906,11 @@ namespace KDS_Module_Vx
 
             return file;
         }  // End Of getFileNames
-        #endregion // Enf Of Get FIle Names
+        #endregion // Enf Of Get file Names with Path 
+
+
+        
+
 
         #region  // Get Pricing Database filename
         public string get_PriceDB_fileName()
@@ -927,7 +931,8 @@ namespace KDS_Module_Vx
             else { selectedFileName = "Z:\\BIM\\Families\\SupplierCode\\KDS_CI_NH-BLK_MLBL.csv"; }
             openFileDialog1.Dispose();
             return selectedFileName;*/
-            return "Z:\\BIM\\KDS_SUPPLIER_CODE\\KDS_CI_NH_BLK_MLBL.csv";
+            //return "Z:\\BIM\\KDS_SUPPLIER_CODE\\KDS_CI_NH_BLK_MLBL.csv";
+            return "Z:\\BIM\\KDS_SUPPLIER_CODE\\KDS_ALL_HPH.csv";
         }
         #endregion  // End Of Get Pricing Database filename
 

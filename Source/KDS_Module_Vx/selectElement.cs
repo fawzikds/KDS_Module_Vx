@@ -12,10 +12,10 @@ namespace KDS_Module_Vx
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-			UIDocument uidoc = commandData.Application.ActiveUIDocument;
+            UIDocument uidoc = commandData.Application.ActiveUIDocument;
 
-			Reference reference = uidoc.Selection.PickObject(ObjectType.Element);
-			Pipe pipe = uidoc.Document.GetElement(reference) as Pipe;
+            Reference reference = uidoc.Selection.PickObject(ObjectType.Element);
+            Pipe pipe = uidoc.Document.GetElement(reference) as Pipe;
 
             //XYZ p1 = inst?.FacingOrientation ?? new XYZ(0, 0, 0);
             //XYZ p2 = inst?.HandOrientation ?? new XYZ(0, 0, 0);

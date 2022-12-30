@@ -1000,11 +1000,11 @@ namespace KDS_Module_Vx
 
                 if (lenDiff_perc <= tolerance)
                 {
-                    return "Yes";
+                    return "Vertical";
                 }
                 else
                 {
-                    return "No";
+                    return "Horizontal";
                 }
             }
             else
@@ -1023,18 +1023,18 @@ namespace KDS_Module_Vx
             // if System Name has "_BG_" in it.  return yes
             if (pipe.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString().Contains("_BG_"))
             {
-                return "Yes";
+                return "BG";
             }
             // else check if level is lowest than lowest level.
             else
             {
                 if (sortedLevels_lst[0].Elevation > GetPipeLevel(sortedLevels_lst, pipe, "middle").Elevation)
                 {
-                    return "Yes";
+                    return "BG";
                 }
                 else
                 {
-                    return "No";
+                    return "AG";
                 }
             }
 
