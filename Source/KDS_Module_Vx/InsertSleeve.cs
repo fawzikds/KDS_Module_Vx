@@ -18,7 +18,18 @@ namespace KDS_Module_Vx
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public class InsertSleeve : IExternalCommand
     {
-        const string _sleeveString = "KDS_Hilti-FS_CFS_CID";
+        string _sleeveString = "";
+        List<string> _sleeveStr_lst = new List<string> {
+        "KDS_Hilti-FS_CFS_CID",
+"KDS_Husky-Band_SD4000",
+"KDS_Hilti-FS_CFS_CID_AsFixture",
+"KDS_Hilti-FS_CFS_CID_AsMechCouplFitt",
+"KDS_Hilti-FS_CFS_CID_AsFittUnion"
+    };
+
+
+
+
         Dictionary<string, double> flrTh_dict = new Dictionary<string, double>()
                 {
             {"0.5", 0.5},{"1/2", 0.5},
@@ -67,6 +78,25 @@ namespace KDS_Module_Vx
             List<Autodesk.Revit.DB.Point> sleevesLocPnt_lst = new List<Autodesk.Revit.DB.Point>();
             #endregion  // Some Definitions
 
+
+            #region  // Get Sleeve Family Name to Use from the User  -- now hardcoded to "KDS_Hilti-FS_CFS_CID"
+            /*string sleeveInputStr = "Please Select a Family Name:\n";
+            int sleeveInputStr_i = 0;
+            int i = 0;
+            foreach (string st in _sleeveStr_lst) { i++; sleeveInputStr += i + "- " + st + "\n"; }
+
+            if (int.TryParse(Interaction.InputBox(sleeveInputStr, "InsertSleeve", "Select a Family", 500, 500), out sleeveInputStr_i))
+            {
+                _sleeveString = _sleeveStr_lst[sleeveInputStr_i - 1];
+            }
+            else return Result.Succeeded;*/
+            
+            
+            _sleeveString = _sleeveStr_lst[0];
+
+            #endregion  // Get Sleeve Family Name to Use from the User
+
+
             #region   // Get Family of Sleeves and List of all Pipes in Host Doc.sleevesLocPnt_lst
             // Get The FamilySymbol for the Sleeve
             FilteredElementCollector sleeveCollector = new FilteredElementCollector(actvDoc);
@@ -74,10 +104,8 @@ namespace KDS_Module_Vx
 
             FamilySymbol sleeveFamSymbol = actvDoc.GetElement(sleeveFam.GetFamilySymbolIds().FirstOrDefault()) as FamilySymbol;
 
-
             string flrTh_str = null;
             string insTh_str = null;
-
 
             // Get a List of All Pipes 
             FilteredElementCollector pipeCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Pipe));
@@ -101,7 +129,7 @@ namespace KDS_Module_Vx
             // Talking to draino, he says just put 2" Sleeves anyways, for pipes with over all size Less than 2".
             // So This will be added during the creation of the Sleeves. anything less than 2" overall size will get a 2" Sleeve.
             //List<Pipe> pipes_OAsize_dbl_lst = pipes_lst.Where(p => get_PipeOverallSize(p) > 0.146 && get_PipeOverallSize(p) < 0.5).ToList();
-            List<Pipe> pipes_OAsize_dbl_lst = pipes_lst.Where(p => get_PipeOverallSize(p) < 0.5).ToList();
+            List<Pipe> pipes_OAsize_dbl_lst = pipes_lst.Where(p => get_PipeOverallSize(p) < 0.51).ToList();
 
             #region // Debug Only -- ommited
             /*            string inThStr0 = "Pipe Diam || Ins_dbl || overallSize_dbl ||\n";
@@ -122,16 +150,17 @@ namespace KDS_Module_Vx
 
 
             #region // Debug Only -- ommited
-            string inThStr2 = "Pipe Diam || Ins_dbl || overallSize_dbl ||\n";
+            /*string inThStr2 = "Pipe Diam || Ins_dbl || overallSize_dbl || ElementID ||\n";
 
             foreach (Pipe pipe in pipes_size_slope_lst)
             {
                 inThStr2 += pipe.Diameter * 12.0 + "||" +
                      get_PipeInsulationThickness(pipe) * 12.0 + "||" +
                      get_PipeOverallSize(pipe) * 12.0 + "||" +
+                     pipe.Id + "||" +
                     "\n";
             }
-            TaskDialog.Show("insertSleeve", inThStr2);
+            TaskDialog.Show("insertSleeve", inThStr2);*/
             #endregion // End Of Debug Only -- ommited
 
 
@@ -273,7 +302,7 @@ namespace KDS_Module_Vx
 
                     TaskDialog.Show("insertSleeves", " Delete Temp Floors");
                     // Delete Temp Floors in Host DOc
-                    //DeleteFloors(actvDoc);
+                    DeleteFloors(actvDoc);
                 }
 
 
@@ -369,45 +398,58 @@ namespace KDS_Module_Vx
 
                                     //Parameter OverallSize_p = p.get_Parameter(BuiltInParameter.RBS_REFERENCE_OVERALLSIZE);  //  Gets the sum of the Pipe Diameter and the Insulation Thickness if any
                                     double OverallSize_dbl = get_PipeOverallSize(p);
-                                    TaskDialog.Show("insertSleeve", " OverallSize: " + OverallSize_dbl);
+                                    //TaskDialog.Show("insertSleeve", " OverallSize: " + OverallSize_dbl);
 
-                                    double slv_diam_dbl_adj = 0.167;
+                                    double slv_diam_dbl_adj = 0.0;
 
-                                    if (OverallSize_dbl < 1.9/12) { slv_diam_dbl_adj = 2.0/12 ; }          // For  than 2" => 2"   
-                                    if (OverallSize_dbl > 1.9/12 && OverallSize_dbl < 2.4/12) { slv_diam_dbl_adj = 4/12; }   // For Between 2" and 3" => 3"
-                                    if (OverallSize_dbl > 2.4 / 12 && OverallSize_dbl < 2.9 / 12) { slv_diam_dbl_adj = 5 / 12; }   // For Between 2" and 3" => 3"
-                                    if (OverallSize_dbl > 2.9 / 12 && OverallSize_dbl < 3.4 / 12) { slv_diam_dbl_adj = 5 / 12; }   // For Between 2" and 3" => 3"
-                                    if (OverallSize_dbl > 3.4 / 12 && OverallSize_dbl < 4.4 / 12) { slv_diam_dbl_adj = 6 / 12; }   // For Between 2" and 3" => 3"
-                                    if (OverallSize_dbl > 4.4 / 12 && OverallSize_dbl < 5.9 / 12) { slv_diam_dbl_adj = 8 / 12; }   // For Between 2" and 3" => 3"
-                                    if (OverallSize_dbl > 5.9/ 12 && OverallSize_dbl < 6.1 / 12) { slv_diam_dbl_adj = 8 / 12; }   // For Between 2" and 3" => 3"
-                                    if (OverallSize_dbl > 6.1 / 12 ) { slv_diam_dbl_adj = 8 / 12; TaskDialog.Show("insertSleeve", "Hilti Does Not Support Sleeves Larger Than 6inch"); }   // For Between 2" and 3" => 3"
+                                    if (OverallSize_dbl < 0.158) { slv_diam_dbl_adj = 0.167; }          // For  than 1.9" => 2"   
+                                    if (OverallSize_dbl > 0.158 && OverallSize_dbl < 0.200) { slv_diam_dbl_adj = 0.334; }    // For Between 1.9" and 2.4" => 2" => 4" Hilti0.334
+                                    if (OverallSize_dbl > 0.200 && OverallSize_dbl < 0.283) { slv_diam_dbl_adj = 0.417; }   // For Between 2.4" and 3.4" => 3" => 5" Hilti0.417
+                                    if (OverallSize_dbl > 0.283 && OverallSize_dbl < 0.367) { slv_diam_dbl_adj = 0.500; }   // For Between 3.4" and 4.4" => 4" => 6" Hilti0.500
+                                    if (OverallSize_dbl > 0.367 && OverallSize_dbl < 0.508) { slv_diam_dbl_adj = 0.667; }   // For Between 4.4" and 6.1" => 6" => 8" Hilti0.667
+                                    if (OverallSize_dbl > 0.508) { slv_diam_dbl_adj = 0.667; TaskDialog.Show("insertSleeve", "Hilti Does Not Support Sleeves Larger Than 6 inch"); }   // For Between 2" and 3" => 3"
 
 
 
 
-                                    TaskDialog.Show("insertSleeve", " slv_diam_dbl_adj: " + slv_diam_dbl_adj);
+                                    //TaskDialog.Show("insertSleeve", " slv_diam_dbl_adj: " + slv_diam_dbl_adj);
 
                                     // Get the Diameter Parameter for the Sleeve THEN set it to the size from the relevant pipe.
                                     Parameter slv_diam = sleeve_famInst.LookupParameter("Size");
 
                                     // Set the Diameter for the Sleeve
-                                    if(slv_diam.Set(slv_diam_dbl_adj) ==true)
+                                    slv_diam.Set(slv_diam_dbl_adj);
+                                    /*if (slv_diam.Set(slv_diam_dbl_adj) == true)
                                         TaskDialog.Show("insertSleeve", " Set Param slv_diam to: " + slv_diam.AsValueString());
                                     else
                                         TaskDialog.Show("insertSleeve", " Could NOT set Param Value slv_diam to : " + slv_diam.AsValueString());
-                                    // Get the System Type  Parameter for the Sleeve THEN set it to the size from the relevant pipe.
+*/
+
+
+                                    // Get the System Type  Parameter for the Sleeve THEN set it to the that of the relevant pipe.
                                     Parameter p_SysType = p.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
-                                    //TaskDialog.Show("insertSleeve", " p_SysType: " + p_SysType.AsValueString());
 
+                                    //TaskDialog.Show("insertSleeve", " Pipe p_SysType: " + p_SysType.AsValueString());
+
+                                    // Get the parameter of the Sleeve - PipeAccessory 
                                     //Parameter slv_SysType = sleeve_famInst.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
-                                    Parameter slv_Mark = sleeve_famInst.LookupParameter("Mark");
+                                    Parameter slv_SysType = sleeve_famInst.LookupParameter("KDS_PIPING_SYSTEM_TYPE");
 
-                                    //TaskDialog.Show("insrtSleeve", "\n BEFORE set Mark: " + slv_Mark.AsValueString()   );
+                                    #region // Debug Only Check if readOnly and UserModifiable. if it is , then api cannot change it, only UI can.
+                                    /*if (slv_SysType.IsReadOnly) TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is Read Only ");
+                                    else TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is NOT  Read Only ");
 
-                                    //slv_SysType.Set(p_SysType.AsValueString());
-                                    slv_Mark.Set(p_SysType.AsValueString());
+                                    if (slv_SysType.UserModifiable) TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is UserModifiable ");
+                                    else TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is NOT  UserModifiable ");*/
 
-                                    //TaskDialog.Show("insrtSleeve","AFTER set Mark: " + sleeve_famInst.LookupParameter("Mark").AsValueString());
+                                    #endregion  // End Of Debug Only Check if readOnly and UserModifiable. if it is , then api cannot change it, only UI can.
+                                    //TaskDialog.Show("insrtSleeve", "\n BEFORE set Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: " + slv_SysType.AsValueString());
+
+                                    // Set Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM Value
+                                    slv_SysType.Set(p_SysType.AsValueString());
+
+                                    //TaskDialog.Show("insrtSleeve", "AFTER set RBS_PIPING_SYSTEM_TYPE_PARAM: " + sleeve_famInst.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString());
+                                    //TaskDialog.Show("insrtSleeve", "AFTER set RBS_PIPING_SYSTEM_TYPE_PARAM: " + sleeve_famInst.LookupParameter("KDS_PIPING_SYSTEM_TYPE").AsValueString());
                                 }
                                 catch (Exception e)
                                 {
