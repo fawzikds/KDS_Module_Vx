@@ -65,6 +65,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="CodeFile1.cs" />
     <Compile Include="EmbeddedAssembly.cs" />
     <Compile Include="ExportToExcel.cs" />
     <Compile Include="create_update_Fam_KDS_CSV.cs" />

@@ -654,10 +654,10 @@ namespace KDS_Module_Vx
 
                                 catch (System.Exception ex)
                                 {
-                                    /*TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Get Associated Parameter Name For extDef: " + extDef.Name +
+                                    TaskDialog.Show("Create_sharedParameter_inFamily", "Exception \n- Could Not Get Associated Parameter Name For extDef: " + extDef.Name +
                                         " \n- Family Name: " + dstnctFamEdt.Title +
                                         " \n- Formula: " + formula_str +
-                                        " \n- Exception: " + ex);*/
+                                        " \n- Exception: " + ex);
                                 }
                             }
 

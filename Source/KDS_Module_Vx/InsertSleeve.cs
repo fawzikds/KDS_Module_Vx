@@ -2,12 +2,14 @@
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+using DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Windows.Forms;
 
 
@@ -71,13 +73,40 @@ namespace KDS_Module_Vx
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
             #region // Some Definitions 
-            Document actvDoc = commandData.Application.ActiveUIDocument.Document;
+            Autodesk.Revit.DB.Document actvDoc = commandData.Application.ActiveUIDocument.Document;
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;
             UIApplication uiApp = commandData.Application;
             Autodesk.Revit.ApplicationServices.Application app = uiApp.Application;
             List<Autodesk.Revit.DB.Point> sleevesLocPnt_lst = new List<Autodesk.Revit.DB.Point>();
             #endregion  // Some Definitions
+           
+            
+            #region  // Test guid 
+           /* Guid KDS_PIPING_SYSTEM_TYPE_GUID = "d7196377 - 8d4d - 4b25 - 8789 - 912f72cc2f80";
+            List<Element> sharedParams = new List<Element>();
+            FilteredElementCollector collector
+                = new FilteredElementCollector(actvDoc)
+                .WhereElementIsNotElementType();
+            // Filter elements for shared parameters only
+            collector.OfClass(typeof(SharedParameterElement));
+            string guid_str = "GUID Parameter Values \n";
 
+            foreach (Element e in collector)
+            {
+                SharedParameterElement param_sharedElem = e as SharedParameterElement;
+                Definition def = param_sharedElem.GetDefinition();
+                string param_str = GetParamValueByGuid( param_sharedElem.GuidValue, param_sharedElem)??"NA-guid";
+
+                //Debug.WriteLine("[" + e.Id + "]\t" + def.Name + "\t(" + param.GuidValue + ")");
+                guid_str += "id= [" + e.Id + "]\n" +
+                             "Name: " + def.Name + "\n" +
+                             "GUIDValue: (" + param_sharedElem.GuidValue + ")" + "\n" +
+                             "parm Value: " + param_str + "\n" +
+                             "------------------------------\n";
+            }
+            TaskDialog.Show("insertSleeve",guid_str);
+*/
+            #endregion
 
             #region  // Get Sleeve Family Name to Use from the User  -- now hardcoded to "KDS_Hilti-FS_CFS_CID"
             /*string sleeveInputStr = "Please Select a Family Name:\n";
@@ -90,8 +119,8 @@ namespace KDS_Module_Vx
                 _sleeveString = _sleeveStr_lst[sleeveInputStr_i - 1];
             }
             else return Result.Succeeded;*/
-            
-            
+
+
             _sleeveString = _sleeveStr_lst[0];
 
             #endregion  // Get Sleeve Family Name to Use from the User
@@ -321,7 +350,7 @@ namespace KDS_Module_Vx
             #region // Defining and Collection of Elements and Variables //
 
             UIDocument uidoc = uiApp.ActiveUIDocument;
-            Document actvDoc = uidoc.Document;
+            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
 
             List<XYZ> points = new List<XYZ>();
@@ -435,28 +464,66 @@ namespace KDS_Module_Vx
                                     //Parameter slv_SysType = sleeve_famInst.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM);
                                     Parameter slv_SysType = sleeve_famInst.LookupParameter("KDS_PIPING_SYSTEM_TYPE");
 
-                                    #region // Debug Only Check if readOnly and UserModifiable. if it is , then api cannot change it, only UI can.
-                                    /*if (slv_SysType.IsReadOnly) TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is Read Only ");
-                                    else TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is NOT  Read Only ");
+                                    Guid slv_SysType_GUID = slv_SysType.GUID;
+                                    Parameter p3 = sleeve_famInst.get_Parameter(slv_SysType_GUID);
 
-                                    if (slv_SysType.UserModifiable) TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is UserModifiable ");
-                                    else TaskDialog.Show("insrtSleeve", "\n Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: Is NOT  UserModifiable ");*/
+
+
+                                    TaskDialog.Show("insrtSleeve", "GUID for  KDS_PIPING_SYSTEM_TYPE: " + slv_SysType.GUID);
+                                    TaskDialog.Show("insrtSleeve", "p3 value: " + p3.AsString());
+
+                                    #region // Debug Only Check if readOnly and UserModifiable. if it is , then api cannot change it, only UI can.
+                                    if (slv_SysType.IsReadOnly) TaskDialog.Show("insrtSleeve", "Sleeve KDS_PIPING_SYSTEM_TYPE: Is Read Only ");
+                                    else TaskDialog.Show("insrtSleeve", "Sleeve KDS_PIPING_SYSTEM_TYPE: Is NOT  Read Only ");
+
+                                    if (slv_SysType.UserModifiable) TaskDialog.Show("insrtSleeve", "Sleeve KDS_PIPING_SYSTEM_TYPE: Is UserModifiable ");
+                                    else TaskDialog.Show("insrtSleeve", "Sleeve KDS_PIPING_SYSTEM_TYPE: Is NOT  UserModifiable");
 
                                     #endregion  // End Of Debug Only Check if readOnly and UserModifiable. if it is , then api cannot change it, only UI can.
-                                    //TaskDialog.Show("insrtSleeve", "\n BEFORE set Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM: " + slv_SysType.AsValueString());
-
+                                    TaskDialog.Show("insrtSleeve", "BEFORE set Sleeve KDS_PIPING_SYSTEM_TYPE: " + slv_SysType.AsValueString());
+                                    TaskDialog.Show("insrtSleeve", "BEFORE set Sleeve KDS_PIPING_SYSTEM_TYPE w GUID: " + actvDoc.GetElement(sleeve_famInst.Id).get_Parameter(slv_SysType_GUID).AsValueString());
                                     // Set Sleeve RBS_PIPING_SYSTEM_TYPE_PARAM Value
                                     slv_SysType.Set(p_SysType.AsValueString());
 
                                     //TaskDialog.Show("insrtSleeve", "AFTER set RBS_PIPING_SYSTEM_TYPE_PARAM: " + sleeve_famInst.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString());
-                                    //TaskDialog.Show("insrtSleeve", "AFTER set RBS_PIPING_SYSTEM_TYPE_PARAM: " + sleeve_famInst.LookupParameter("KDS_PIPING_SYSTEM_TYPE").AsValueString());
+                                    TaskDialog.Show("insrtSleeve", "AFTER set KDS_PIPING_SYSTEM_TYPE: " + sleeve_famInst.LookupParameter("KDS_PIPING_SYSTEM_TYPE").AsValueString());
+                                    TaskDialog.Show("insrtSleeve", "AFTER set Sleeve KDS_PIPING_SYSTEM_TYPE w GUID: " + actvDoc.GetElement(sleeve_famInst.Id).get_Parameter(slv_SysType_GUID).AsValueString());
+
+
+                                  p3 = sleeve_famInst.get_Parameter(slv_SysType_GUID);
+
+
+
+                                    TaskDialog.Show("insrtSleeve", "GUID for  KDS_PIPING_SYSTEM_TYPE: " + slv_SysType.GUID);
+                                    TaskDialog.Show("insrtSleeve", "p3 value: " + p3.AsString());
+
+/*                                    SharedParameterElement shParamElement = SharedParameterElement.Lookup(actvDoc, new Guid("d7196377-8d4d-4b25-8789-912f72cc2f80"));
+
+                                    ParameterValueProvider pvp = new ParameterValueProvider(shParamElement.Id);
+                                    TaskDialog.Show("insrtSleeve", "pvp value: " + pvp.Parameter.ToString());
+                                    FilterStringRuleEvaluator evaluator = new FilterStringEquals(); 
+                                    FilterRule rule = new FilterStringRule(pvp, evaluator, "KDS_PIPING_SYSTEM_TYPE", false);
+                                    */
+                                    Element element = actvDoc.GetElement(sleeve_famInst.Id);
+                                    Parameter p4 = element.get_Parameter(new Guid("d7196377-8d4d-4b25-8789-912f72cc2f80"));
+                                    TaskDialog.Show("insrtSleeve", "p4 AsString: " + p4.AsString());
+                                    TaskDialog.Show("insrtSleeve", "p4 AsValueString: " + p4.AsValueString());
+                                    TaskDialog.Show("insrtSleeve", "p4 ToString: " + p4.ToString());
+
                                 }
+
+
                                 catch (Exception e)
                                 {
 
                                     TaskDialog.Show("insrtSleeve", "  In insertSleeves Function " + "\nException try to write parameters: e: " + e);
                                 }
                                 setSleeveParam_trx.Commit();
+                                setSleeveParam_trx.Dispose();
+                                //TaskDialog.Show("insrtSleeve", "AFTER set RBS_PIPING_SYSTEM_TYPE_PARAM: " + sleeve_famInst.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString());
+                                //TaskDialog.Show("insrtSleeve", "AFTER COMMIT set KDS_PIPING_SYSTEM_TYPE: " + sleeve_famInst.get_Parameter(sleeve_famInst.LookupParameter("KDS_PIPING_SYSTEM_TYPE").GUID).AsValueString());
+                               
+
                             }
                         }
                     }   // if frstflrface
@@ -472,8 +539,53 @@ namespace KDS_Module_Vx
         #endregion  // End of insertSleeves
 
 
+        public string GetParamValueByGuid(Guid guid, Element e)
+        {
+            var paramValue = string.Empty;
+
+            foreach (Parameter parameter in e.Parameters)
+            {
+                if (parameter.IsShared)
+                {
+                    if (parameter.GUID == guid)
+                    {
+                        paramValue = parameter.AsString();
+                    }
+                }
+            }
+
+            return paramValue;
+        }
+
+
+        public Parameter GetParameter(Element e, Guid guid)
+        {
+            Parameter parameter = null;
+            try
+            {
+                if (e.get_Parameter(guid) != null) parameter = e.get_Parameter(guid);
+                else
+                {
+                    ElementType et = e.Document.GetElement(e.GetTypeId()) as ElementType;
+                    if (et != null) { parameter = et.get_Parameter(guid); }
+                    else
+                    {
+                        Material m = e.Document.GetElement(e.GetMaterialIds(false).First()) as Material;
+                        parameter = m.get_Parameter(guid);
+                    }
+                }
+
+            }
+            catch { }
+
+            return parameter;
+        }
+
+
+
+
         #region // Reset the shape of the floors as Elementid 
-        public void resetFloor(Document actvDoc, List<ElementId> floors_lst)
+        public void resetFloor(Autodesk.Revit.DB.Document actvDoc, List<ElementId> floors_lst)
         {
             // I Came Across floors that had their shape modified, and the i was not able to insert a sleeve.
             // So i reset their shape and i was able to insert a sleeve.  this loop does that progrmamtically. (select Floor=>Modify=>reset shape)
@@ -504,7 +616,7 @@ namespace KDS_Module_Vx
 
 
         #region // Reset the shape of the floors as Floor 
-        public void resetFloor(Document actvDoc, List<Floor> floors_lst)
+        public void resetFloor(Autodesk.Revit.DB.Document actvDoc, List<Floor> floors_lst)
         {
             // I Came Across floors that had their shape modified, and the i was not able to insert a sleeve.
             // So i reset their shape and i was able to insert a sleeve.  this loop does that progrmamtically. (select Floor=>Modify=>reset shape)
@@ -545,10 +657,10 @@ namespace KDS_Module_Vx
 
 
         #region // InsertFloor Function to create floor //
-        public Floor InsertFloor(UIApplication uiApp, Level lvl, string flrTh_str)
+        public Floor InsertFloor(UIApplication uiApp, Autodesk.Revit.DB.Level lvl, string flrTh_str)
         {
             UIDocument uidoc = uiApp.ActiveUIDocument;
-            Document actvDoc = uidoc.Document;
+            Autodesk.Revit.DB.Document actvDoc = uidoc.Document;
 
             Floor floor = null;
             #region // Transaction to Create Floor //
@@ -637,6 +749,7 @@ namespace KDS_Module_Vx
                 p1.Set(0);
                 //p2.Set(flrTh_dbl);
 
+
                 floorType = floor.FloorType;
                 floorType.GetCompoundStructure().SetLayerWidth(0, flrTh_dbl);
 
@@ -651,7 +764,7 @@ namespace KDS_Module_Vx
 
         #region // DeleteFloor Function to delete floor //
 
-        public void DeleteFloors(Document actvDoc)
+        public void DeleteFloors(Autodesk.Revit.DB.Document actvDoc)
         {
             FilteredElementCollector floorCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Floor));
             List<Floor> floors = floorCollector.Cast<Floor>().ToList();
@@ -667,7 +780,7 @@ namespace KDS_Module_Vx
             }
         }
 
-        public void DeleteFloors(Document actvDoc, List<Floor> floor_lst)
+        public void DeleteFloors(Autodesk.Revit.DB.Document actvDoc, List<Floor> floor_lst)
         {
             foreach (Floor floor in floor_lst)
             {
@@ -682,7 +795,7 @@ namespace KDS_Module_Vx
         #endregion
 
         #region Delete Dimensions Element ID  List
-        public void DeleteDims_lst(Document actvDoc, List<ElementId> Dims_el_lst)
+        public void DeleteDims_lst(Autodesk.Revit.DB.Document actvDoc, List<ElementId> Dims_el_lst)
         {
             foreach (ElementId Dims_el in Dims_el_lst)
             {
@@ -781,7 +894,7 @@ namespace KDS_Module_Vx
         //Alexander @aignatovich @CADBIMDeveloper Ignatovich, aka Александр Игнатович,
         double get_PipeOverallSize(Pipe currPipe)
         {
-            Document currPipe_doc = currPipe.Document;
+            Autodesk.Revit.DB.Document currPipe_doc = currPipe.Document;
             ElementId currPipe_id = currPipe.Id;
             var pipeInsulation = InsulationLiningBase.GetInsulationIds(currPipe_doc, currPipe_id).Select(currPipe_doc.GetElement).OfType<PipeInsulation>().FirstOrDefault();
             double overallSize_dbl = pipeInsulation?.Thickness ?? 0.0;   // if null set to 0.0
@@ -796,7 +909,7 @@ namespace KDS_Module_Vx
         {
             // Very Slow Metthod of Gettting Pipe insulation:
             // var pipeInsulation = pipe.GetDependentElements(new ElementClassFilter(typeof(PipeInsulation))).Select(pipe.Document.GetElement).Cast<PipeInsulation>().FirstOrDefault();
-            Document currPipe_doc = currPipe.Document;
+            Autodesk.Revit.DB.Document currPipe_doc = currPipe.Document;
             ElementId currPipe_id = currPipe.Id;
             // Much Faster Metthod of Gettting Pipe insulation:
             var pipeInsulation = InsulationLiningBase.GetInsulationIds(currPipe_doc, currPipe_id).Select(currPipe_doc.GetElement).OfType<PipeInsulation>().FirstOrDefault();
@@ -813,7 +926,7 @@ namespace KDS_Module_Vx
         {
             // Very Slow Metthod of Gettting Pipe insulation:
             // var pipeInsulation = pipe.GetDependentElements(new ElementClassFilter(typeof(PipeInsulation))).Select(pipe.Document.GetElement).Cast<PipeInsulation>().FirstOrDefault();
-            Document currPipe_doc = currPipe.Document;
+            Autodesk.Revit.DB.Document currPipe_doc = currPipe.Document;
             ElementId currPipe_id = currPipe.Id;
             // Much Faster Metthod of Gettting Pipe insulation:
             var pipeInsulation = InsulationLiningBase.GetInsulationIds(currPipe_doc, currPipe_id).Select(currPipe_doc.GetElement).OfType<PipeInsulation>().FirstOrDefault();
@@ -839,7 +952,7 @@ namespace KDS_Module_Vx
                 throw new ArgumentNullException("pipe");
             }
 
-            Document doc = pipe.Document;
+            Autodesk.Revit.DB.Document doc = pipe.Document;
 
             // Filtered element collector and HostElementId
 
@@ -911,7 +1024,7 @@ namespace KDS_Module_Vx
 
 
         #region  // Load all Unloaded Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
-        public List<RevitLinkType> load_all_Un_LnkdDocs(Document actvDoc)
+        public List<RevitLinkType> load_all_Un_LnkdDocs(Autodesk.Revit.DB.Document actvDoc)
         {
             //ISet<ElementId> xrefs = ExternalResourceUtils.GetAllExternalResourceReferences(actvDoc);
             FilteredElementCollector rvtLinks = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_RvtLinks);
@@ -951,7 +1064,7 @@ namespace KDS_Module_Vx
 
 
         #region  // Load all Unloaded Documents.... Prefer that user load the documents that has the Floors in it insetead of loading all linked documents.
-        public List<RevitLinkType> load_Selected_Un_LnkdDocs(Document actvDoc)
+        public List<RevitLinkType> load_Selected_Un_LnkdDocs(Autodesk.Revit.DB.Document actvDoc)
         {
             //ISet<ElementId> xrefs = ExternalResourceUtils.GetAllExternalResourceReferences(actvDoc);
             FilteredElementCollector rvtLinks = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_RvtLinks);
@@ -1013,7 +1126,7 @@ namespace KDS_Module_Vx
             string tds_lnkd = "---    LINKED DOCS   ---";
             string tds_notlnkd = "---   NOT LINKED DOCS   ---";
 
-            foreach (Document lnkdDoc in app.Documents)
+            foreach (Autodesk.Revit.DB.Document lnkdDoc in app.Documents)
             {
 
                 if (!lnkdDoc.IsLinked)
@@ -1055,10 +1168,10 @@ namespace KDS_Module_Vx
 
 
         #region //  getRvtLnkdDoc()
-        public Document getLnkdDoc(Autodesk.Revit.ApplicationServices.Application app, Document hostDoc, string matchStr)
+        public Autodesk.Revit.DB.Document getLnkdDoc(Autodesk.Revit.ApplicationServices.Application app, Autodesk.Revit.DB.Document hostDoc, string matchStr)
         {
-            Document retDoc = null;
-            foreach (Document lnkdDoc in app.Documents)
+            Autodesk.Revit.DB.Document retDoc = null;
+            foreach (Autodesk.Revit.DB.Document lnkdDoc in app.Documents)
             {
                 if (!lnkdDoc.IsLinked)
                 {
@@ -1077,7 +1190,7 @@ namespace KDS_Module_Vx
 
 
         #region //  getArchModelFloors_Col()
-        public ICollection<ElementId> getArchModelFloors_Col(Autodesk.Revit.ApplicationServices.Application app, Document lnkdDoc, BuiltInCategory BIC_str)
+        public ICollection<ElementId> getArchModelFloors_Col(Autodesk.Revit.ApplicationServices.Application app, Autodesk.Revit.DB.Document lnkdDoc, BuiltInCategory BIC_str)
         {
             FilteredElementCollector linkedFamCollector = new FilteredElementCollector(lnkdDoc);
             ICollection<ElementId> archModelFloors_col = new FilteredElementCollector(lnkdDoc).WhereElementIsNotElementType().OfCategory(BIC_str).ToElementIds();
@@ -1088,7 +1201,7 @@ namespace KDS_Module_Vx
 
 
         #region   //  copyPasteIds
-        public static void copyPasteIds(Document hostDoc, Document lnkdDoc, IList<ElementId> lnkdFlrs_col)
+        public static void copyPasteIds(Autodesk.Revit.DB.Document hostDoc, Autodesk.Revit.DB.Document lnkdDoc, IList<ElementId> lnkdFlrs_col)
         {
             //TaskDialog.Show("copyPasteIds", "There Count of Floors in this Doc is: " + lnkdFlrs_col.Count);
             using (Transaction copyPasteLnkdElm_trx = new Transaction(hostDoc, "Copy Elements from Linked Doc and Paste in Host Doc"))
@@ -1175,16 +1288,16 @@ namespace KDS_Module_Vx
         #endregion  // End Of CopyUseDestination
 
         #region  //insert floors on levels
-        public List<Floor> insertLevelFloors(UIApplication app, Document actvDoc, string flrTh_str)
+        public List<Floor> insertLevelFloors(UIApplication app, Autodesk.Revit.DB.Document actvDoc, string flrTh_str)
         {
             List<Floor> levelFloors_lst = new List<Floor>();
-            FilteredElementCollector levelCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Level));
-            List<Level> levels = levelCollector.Cast<Level>().ToList();
+            FilteredElementCollector levelCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Autodesk.Revit.DB.Level));
+            List<Autodesk.Revit.DB.Level> levels = levelCollector.Cast<Autodesk.Revit.DB.Level>().ToList();
             //TaskDialog.Show("insertSleeves", "levels.Count: " + levels.Count);
 
             // Insertion of floor at each level //
 
-            foreach (Level lvl in levels)
+            foreach (Autodesk.Revit.DB.Level lvl in levels)
             {
                 Floor floor = InsertFloor(app, lvl, flrTh_str);
                 //TaskDialog.Show("insertLevelFloors", "after insertFloor" + floor.Name);
@@ -1348,7 +1461,7 @@ namespace KDS_Module_Vx
 
 
         #region  // OPens fileDialog Box for File selection
-        public void openFileDialogBox(Document actvDoc)
+        public void openFileDialogBox(Autodesk.Revit.DB.Document actvDoc)
         {
             // Get application and document objects
 
@@ -1412,10 +1525,10 @@ namespace KDS_Module_Vx
         #region // flrsPerLnkdDoc_strct
         public struct flrsPerLnkdDoc_strct
         {
-            public Document lnkDoc;
+            public Autodesk.Revit.DB.Document lnkDoc;
             public List<ElementId> flrsElId_lst;
 
-            public flrsPerLnkdDoc_strct(Document lnkDoc, List<ElementId> flrsElId_lst)
+            public flrsPerLnkdDoc_strct(Autodesk.Revit.DB.Document lnkDoc, List<ElementId> flrsElId_lst)
             {
                 this.lnkDoc = lnkDoc;
                 this.flrsElId_lst = flrsElId_lst;

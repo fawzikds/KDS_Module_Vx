@@ -1,11 +1,14 @@
-﻿using Autodesk.Revit.DB;
+﻿using Autodesk.Revit.Creation;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Plumbing;
 using Autodesk.Revit.UI;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Wordprocessing;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -34,16 +37,36 @@ namespace KDS_Module_Vx
 
             // Lists for Headers in Excel File. Divided into categories based on type of parameter //
             List<string> elm_hdr_lst = new List<string> { "ElementID", "Family", "Type", "Phase" };
-            List<string> fam_hdr_lst = new List<string> { "System Classification", "KDS_MCAA_LBR_RATE", "KDS_LBR_RATE", "KDS_HPH", "KDS_MfrList", "KDS_MfrPart",
-                                                         "Label", "Category", "Size", "Length", "System Type" };
-        List<string> calc_hdr_lst = new List<string> { "Is Vertical", "Is Underground", "Is Insulated", "Insulation Name", "Level", "Diameter", "System Name" };
+            List<string> fam_hdr_lst = new List<string> {
+                "System Classification",
+                "KDS_MCAA_LBR_RATE",
+                "KDS_LBR_RATE",
+                "KDS_HPH",
+                "KDS_MfrList",
+                "KDS_MfrPart",
+                "TypeMark",
+                "Category",
+                "Size",
+                "Length",
+                "System Type",
+                "System Name"
+            };
+
+            List<string> calc_hdr_lst = new List<string> {
+                "Is Vertical",
+                "Is Underground",
+                "Is Insulated",
+                "Insulation Name",
+                "Level",
+                "Diameter"
+            };
 
             #region // Get Lowest Level
             // Get Lowest Level Point so i can find out if an Element is underground.
             // This is not fool proof, since there are cases whether the lowest level is just above finished floor.
             // Or the Building is on a slope, so other pipe wich is higher than lowest level is still underground.
             FilteredElementCollector lvlCollector = new FilteredElementCollector(actvDoc).OfClass(typeof(Autodesk.Revit.DB.Level));
-            List<Level> levels_lst = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_Levels).WhereElementIsNotElementType().ToElements().Select(el => el as Level).ToList();
+            List<Autodesk.Revit.DB.Level> levels_lst = new FilteredElementCollector(actvDoc).OfCategory(BuiltInCategory.OST_Levels).WhereElementIsNotElementType().ToElements().Select(el => el as Autodesk.Revit.DB.Level).ToList();
 
             List<Autodesk.Revit.DB.Level> sortedLevels_lst = levels_lst.OrderBy(ordr => ordr.Elevation).ToList();
             #endregion Get Lowest Level
@@ -340,13 +363,13 @@ namespace KDS_Module_Vx
         */
         #endregion  // End Of exportToExcel_func
 
-
+        #region // ShowPhaseCreatedName 
         public string ShowPhaseCreatedName(Element element)
         {
             if (element == null) { return "NA"; }
             // Get the Phase Create property, and assert it should not be null
             Autodesk.Revit.DB.Phase phaseCreated = element.Document.GetElement(element.CreatedPhaseId) as Phase;
-            if (null == phaseCreated)
+            if (phaseCreated == null)
             {
                 return "NA";
             }
@@ -358,8 +381,10 @@ namespace KDS_Module_Vx
             }
         }
 
+        #endregion   // End Of ShowPhaseCreatedName
+
         #region // exportToExcel_func   
-        public void exportToExcel_func(UIDocument uiDoc, List<Level> sortedLevels_lst, List<string> elm_hdr_lst, List<string> famHdrList, List<string> calc_hdr_lst, List<est_data_class> KDSEstData_Pipe_lst)
+        public void exportToExcel_func(UIDocument uiDoc, List<Autodesk.Revit.DB.Level> sortedLevels_lst, List<string> elm_hdr_lst, List<string> famHdrList, List<string> calc_hdr_lst, List<est_data_class> KDSEstData_Pipe_lst)
         {
 
             Autodesk.Revit.DB.Document actvDoc = uiDoc.Document;
@@ -395,34 +420,33 @@ namespace KDS_Module_Vx
             // Adding Pipe data to rc_data
             foreach (Pipe pipe in pipes)
             {
-                // I left these defined here for debugging purpose.  i will roll into rc_data.Add directly to save on creating them in every loop
+                // I left these defined here for debugging purpose.  i will roll'em into rc_data.Add directly to save on creating them in every loop
 
                 string id = pipe.Id.ToString();
                 string name = pipe.Name;
                 string getTypeName = pipe.GetType().Name;
-                //string getPhase = ""; if (pipe.get_Parameter(BuiltInParameter.VIEW_PHASE) != null) { getPhase = pipe.get_Parameter(BuiltInParameter.VIEW_PHASE).AsValueString(); }
                 string getPhase = ShowPhaseCreatedName(actvDoc.GetElement(pipe.Id));
 
                 string getSysClassName = ""; if (pipe.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM) != null) { getSysClassName = pipe.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString(); }
-
                 string id1 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_MCAA_LBR_RATE");
                 string id2 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_LBR_RATE");
                 string id3 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_HPH");
                 string id4 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_MfrList");
                 string id5 = get_Pipe_KDSParams(KDSEstData_Pipe_lst, pipe, "KDS_MfrPart");
                 string id6 = "NA";  //  Type Mark (Labels)
-
                 string getElemCatName = pipe?.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM)?.AsValueString();
                 string size = pipe?.LookupParameter("Size")?.AsString();
                 string length = pipe?.LookupParameter("Length")?.AsDouble().ToString("0.000");   // AsValueString();
                 string getPipeSysTypeName = pipe?.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)?.AsValueString();
+                string MEPSysName = pipe?.MEPSystem?.Name != null ? pipe.MEPSystem.Name : "null";
+
                 string isVertical = IsVertical(pipe);
                 string isUnderground = IsUnderground(sortedLevels_lst, pipe);
                 string isInsulated = IsInsulated(pipe);
                 string insulationMtrlName = InsulationMatrlName(pipe);  //"NA" ,
                 string getLevel = GetPipeLevelName(sortedLevels_lst, pipe, "middle");
                 string diam = (12 * pipe.Diameter).ToString() + "\"";
-                string MEPSysName = pipe?.MEPSystem?.Name != null ? pipe.MEPSystem.Name : "null";
+
 
                 rc_data.Add(new List<string>
                 {
@@ -437,19 +461,20 @@ namespace KDS_Module_Vx
                     id3,
                     id4,
                     id5,
-                    id6,   // Type Mark (Labels)
-
+                    id6,
                     getElemCatName,
                     size,
                     length,
                     getPipeSysTypeName,
+                    MEPSysName,
+
                     isVertical,
                     isUnderground,
                     isInsulated,
                     insulationMtrlName,
                     getLevel,
-                    diam,
-                    MEPSysName,
+                    diam
+
                 }
                 );
             }
@@ -469,22 +494,23 @@ namespace KDS_Module_Vx
                 string id4 = Fitt?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA";
                 string id5 = Fitt?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA";
                 string id6 = "NA";  // Type Mark (Labels)
-
                 string getElemCatName = Fitt?.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM)?.AsValueString() ?? "NA";
                 string size = Fitt?.LookupParameter("Size")?.AsString() ?? "NA";
                 string length = "NA";
                 string getPipeSysTypeName = Fitt?.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)?.AsValueString() ?? "NA";
-                string isVertical = "NA";
-                string isUnderground = "NA";
-                string isInsulated = "NA";
-                string insulationMtrlName = "NA";  //"NA" ,
-                string getLevel = GetInstanceLevel(uiDoc, Fitt) ?? "NA";
-                string diam = "NA";
                 string MEPSysName = Fitt?.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM)?.AsString() ?? "NA";
+
+                string isVertical = "NA";   // Is Vertical
+                string isUnderground = "NA";  // Is Underground
+                string isInsulated = "NA";  // Is Insulated
+                string insulationMtrlName = "NA";  // Insulationa Material Name
+                string getLevel = GetInstanceLevel(uiDoc, Fitt) ?? "NA";
+                string diam = "NA";  // diam
+
 
                 rc_data.Add(new List<string>
                 {
-                   id,
+                                       id,
                     name,
                     getTypeName,
                     getPhase,
@@ -495,19 +521,19 @@ namespace KDS_Module_Vx
                     id3,
                     id4,
                     id5,
-                    id6,   // Type Mark (Labels)
-
+                    id6,
                     getElemCatName,
                     size,
                     length,
                     getPipeSysTypeName,
+                    MEPSysName,
+
                     isVertical,
                     isUnderground,
                     isInsulated,
                     insulationMtrlName,
                     getLevel,
-                    diam,
-                    MEPSysName,
+                    diam
                     });
             }
             #endregion // End Of Adding Pipe Fitting Data to rc_data
@@ -516,39 +542,34 @@ namespace KDS_Module_Vx
             #region // Adding Plumbing Fixture data to rc_data
             foreach (FamilyInstance Fixt in fixtures_lst)
             {
-
-
-
                 string id = Fixt.Id.ToString();
                 string name = Fixt.Symbol.Name;
                 string getTypeName = Fixt.GetType().Name;
                 string getPhase = Fixt?.get_Parameter(BuiltInParameter.VIEW_PHASE)?.AsValueString() ?? "NA";
 
                 string getSysClassName = Fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString();
-                //string getPhase = ShowPhaseCreatedName(actvDoc.GetElement(id));
                 string id1 = Fixt?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA";
                 string id2 = Fixt?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA";
                 string id3 = Fixt?.LookupParameter("KDS_HPH")?.AsString() ?? "NA";
                 string id4 = Fixt?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA";
                 string id5 = Fixt?.LookupParameter("KDS_MfrPart")?.AsValueString() ?? "NA";
                 string id6 = Fixt?.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString() ?? "NA";    //  Type Mark (Labels)
-
                 string getElemCatName = Fixt.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM).AsValueString();
-                string size = "NA";
-                string length = "NA";
+                string size = "NA";  // size
+                string length = "NA";  // length
                 string getPipeSysTypeName = Fixt.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString();
+                string MEPSysName = Fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString();
+
                 string isVertical = "NA";   // Is Vertical
                 string isUnderground = "NA";  // Is Underground
                 string isInsulated = "NA";  // Is Insulated
                 string insulationMtrlName = "NA";  // Insulationa Material Name
-                string getLevel = "NA";
-                string diam = "NA";
-                string MEPSysName = Fixt.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString();
-
+                string getLevel = "NA";  //  lgetLevel
+                string diam = "NA";  // diam
 
                 rc_data.Add(new List<string>
                 {
-                    id,
+                                        id,
                     name,
                     getTypeName,
                     getPhase,
@@ -559,19 +580,19 @@ namespace KDS_Module_Vx
                     id3,
                     id4,
                     id5,
-                    id6,   // Type Mark (Labels)
-
+                    id6,
                     getElemCatName,
                     size,
                     length,
                     getPipeSysTypeName,
+                    MEPSysName,
+
                     isVertical,
                     isUnderground,
                     isInsulated,
                     insulationMtrlName,
                     getLevel,
-                    diam,
-                    MEPSysName,
+                    diam
                     });
             }   // foreach fixt
             #endregion // Adding Plumbing Fixture data to rc_data
@@ -580,38 +601,69 @@ namespace KDS_Module_Vx
             #region // Adding Pipe Accessories data to rc_data
             foreach (FamilyInstance PipeAcce in pipeAcce_lst)
             {
+                string id = PipeAcce.Id.ToString();
+                string name = PipeAcce.Symbol.Name;
+                string getTypeName = PipeAcce.GetType().Name;
+                string getPhase = PipeAcce?.get_Parameter(BuiltInParameter.VIEW_PHASE)?.AsValueString() ?? "NA";
+
+                string getSysClassName = PipeAcce.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString();
+                string id1 = PipeAcce?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA";
+                string id2 = PipeAcce?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA";
+                string id3 = PipeAcce?.LookupParameter("KDS_HPH")?.AsString() ?? "NA";
+                string id4 = PipeAcce?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA";
+                string id5 = PipeAcce?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA";
+                string id6 = PipeAcce.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString() ?? "NA"; // Type Mark (Label)
+                string getElemCatName = PipeAcce.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM).AsValueString();
+                string size = "NA";  // size
+                string length = "NA";  // length
+                string getPipeSysTypeName = PipeAcce?.LookupParameter("KDS_PIPING_SYSTEM_TYPE")?.AsValueString() ?? 
+                    PipeAcce?.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM)?.AsString()?? "NA-------";
+                string MEPSysName = PipeAcce.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString();
+
+                string isVertical = "NA";    // Is Vertical
+                string isUnderground = "NA"; // Is Underground
+                string isInsulated = "NA";   // Is Insulated
+                string insulationMtrlName = "NA"; // Insulationa Material Name
+                string getLevel = GetInstanceLevel(uiDoc, PipeAcce);
+                string diam = "NA";  // diam
+
+                /*TaskDialog.Show("ExportToExcel", "KDS_PIPING_SYSTEM_TYPE= " + PipeAcce.LookupParameter("KDS_PIPING_SYSTEM_TYPE").AsValueString() + "\n" +
+                    "Name= " + name + "\n" + 
+                    "Id = " + id);*/
+
+
                 rc_data.Add(new List<string>
                 {
-                    PipeAcce.Id.ToString(),
-                    PipeAcce.Symbol.Name,
-                    PipeAcce.GetType().Name,
-                    PipeAcce?.get_Parameter(BuiltInParameter.VIEW_PHASE)?.AsValueString() ?? "NA",
+                                        id,
+                    name,
+                    getTypeName,
+                    getPhase,
 
-                    PipeAcce.get_Parameter(BuiltInParameter.RBS_SYSTEM_CLASSIFICATION_PARAM).AsString(),
-                    PipeAcce?.LookupParameter("KDS_MCAA_LBR_RATE")?.AsValueString() ?? "NA",
-                    PipeAcce?.LookupParameter("KDS_LBR_RATE")?.AsValueString() ?? "NA",
-                    PipeAcce?.LookupParameter("KDS_HPH")?.AsString() ?? "NA",
-                    PipeAcce?.LookupParameter("KDS_MfrList")?.AsValueString() ?? "NA",
-                    PipeAcce?.LookupParameter("KDS_MfrPart")?.AsString() ?? "NA",
-                    PipeAcce.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString()?? "NA",    // Type Mark (Label)
+                    getSysClassName,
+                    id1,
+                    id2,
+                    id3,
+                    id4,
+                    id5,
+                    id6,
+                    getElemCatName,
+                    size,
+                    length,
+                    getPipeSysTypeName,
+                    MEPSysName,
 
-                    PipeAcce.get_Parameter(BuiltInParameter.ELEM_CATEGORY_PARAM).AsValueString(),
-                    "NA" ,
-                    "NA" ,
-                    PipeAcce.get_Parameter(BuiltInParameter.RBS_PIPING_SYSTEM_TYPE_PARAM).AsValueString(),
-                     "NA",   // Is Vertical
-                    "NA",  // Is Underground
-                    "NA",  // Is Insulated
-                    "NA",  // Insulationa Material Name
-                    GetInstanceLevel(uiDoc, PipeAcce),
-                    "NA",
-                    PipeAcce.get_Parameter(BuiltInParameter.RBS_SYSTEM_NAME_PARAM).AsString(),
+                    isVertical,
+                    isUnderground,
+                    isInsulated,
+                    insulationMtrlName,
+                    getLevel,
+                    diam
                     });
             }  // End of foreach PipeAcce
             #endregion  // End Of Adding Pipe Accessories data to rc_data
 
             #endregion
-            // Write Family and Fixture Data to arc_data to a Macro Enable excel (.xlsm)
+            // Write Family and Fixture Data to rc_data to a Macro Enable excel (.xlsm)
             CreateXL_macro(filePath, sheetName, startRow, startCol, rc_data, hdrList);
 
 
@@ -833,7 +885,7 @@ namespace KDS_Module_Vx
         public double GetPipeZ(Pipe pipe, string startEndMiddle)
         {
 
-            Level lvl = null;
+            Autodesk.Revit.DB.Level lvl = null;
             LocationCurve lc = pipe.Location as LocationCurve;
             Curve crv = lc.Curve;
             double zLocStart = crv.GetEndPoint(0).Z;
@@ -869,9 +921,9 @@ namespace KDS_Module_Vx
 
 
         #region // GetPipeLevel Function to get Level Name of Current Pipe //
-        public Level GetPipeLevel(List<Autodesk.Revit.DB.Level> sortedLevels_lst, Pipe p, string startEndMiddle)
+        public Autodesk.Revit.DB.Level GetPipeLevel(List<Autodesk.Revit.DB.Level> sortedLevels_lst, Pipe p, string startEndMiddle)
         {
-            Level lvl = null;
+            Autodesk.Revit.DB.Level lvl = null;
             LocationCurve lc = p.Location as LocationCurve;
             Curve c = lc.Curve;
             double zLocStart = c.GetEndPoint(0).Z;
@@ -1017,7 +1069,7 @@ namespace KDS_Module_Vx
 
 
         #region // IsUnderground Function to determine whether a Pipe is vertical or not //
-        public string IsUnderground(List<Level> sortedLevels_lst, Pipe pipe)
+        public string IsUnderground(List<Autodesk.Revit.DB.Level> sortedLevels_lst, Pipe pipe)
         {
 
             // if System Name has "_BG_" in it.  return yes
@@ -1052,7 +1104,7 @@ namespace KDS_Module_Vx
             //return Autodesk.Revit.DB.InsulationLiningBase.GetInsulationIds(actvDoc, pipeId).Count == 0 ? "No" : "Yes";
             //return Autodesk.Revit.DB.InsulationLiningBase.GetInsulationIds(actvDoc, pipeId).Count == 0 ? "No" : Autodesk.Revit.DB.InsulationLiningBase.GetInsulationIds(actvDoc, pipeId).FirstOrDefault().ToString();
             double thickness = 0.0;
-            
+
             var pipeInsulation = InsulationLiningBase.GetInsulationIds(pipe.Document, pipe.Id).Select(pipe.Document.GetElement).OfType<PipeInsulation>().FirstOrDefault();
 
             if (pipeInsulation != null)
@@ -1086,7 +1138,7 @@ namespace KDS_Module_Vx
             }
             else
             {
-                Document doc = pipeInsulation.Document;
+                Autodesk.Revit.DB.Document doc = pipeInsulation.Document;
 
                 PipeInsulationType pipeInsulationType = doc.GetElement(pipeInsulation.GetTypeId()) as PipeInsulationType;
 
@@ -1122,7 +1174,7 @@ namespace KDS_Module_Vx
                 throw new ArgumentNullException("pipeInsulation");
             }
 
-            Document doc = pipeInsulation.Document;
+            Autodesk.Revit.DB.Document doc = pipeInsulation.Document;
 
             PipeInsulationType pipeInsulationType
               = doc.GetElement(pipeInsulation.GetTypeId())
@@ -1234,6 +1286,16 @@ namespace KDS_Module_Vx
                     // Insert a new worksheet of specified name .
                     worksheetPart = InsertWorksheet(xltmDoc.WorkbookPart, sheetName);
                 }
+                else  // Delee then Add.. this is so i have a clean sheet... 
+                {
+                    // Delete Sheet
+                    DeleteASheet(xltmDoc,sheetName);
+
+                    // Insert a new worksheet of specified name .
+                    worksheetPart = InsertWorksheet(xltmDoc.WorkbookPart, sheetName);
+                    
+                }
+                
                 #endregion  // Find desired worksheet by name or create one if it does not exist
 
                 int index;
@@ -1297,6 +1359,47 @@ namespace KDS_Module_Vx
         }
         #endregion //  write to excel
 
+
+        #region //  delete a worksheet
+        static string DeleteASheet(SpreadsheetDocument xltmDoc, string sheetName)
+        {
+            try
+            {
+                // Open the document for editing.
+                //using (xltmDoc)
+                //{
+                    var workbookPart = xltmDoc.WorkbookPart;
+                    int sheetCount = workbookPart.Workbook.Sheets.Count();
+
+                    // Get the SheetToDelete from workbook.xml
+                    var theSheet = workbookPart.Workbook.Descendants<Sheet>()
+                                               .FirstOrDefault(s => s.Name == sheetName);
+
+                    if (sheetCount <= 1 || theSheet == null)
+                    {
+                        return $"sheet count from the excel file should be greater than 1 (or) the sheet doesn't exist..";
+                    }
+
+                    // Remove the sheet reference from the workbook.
+                    var worksheetPart = (WorksheetPart)(workbookPart.GetPartById(theSheet.Id));
+                    theSheet.Remove();
+
+                    // Delete the worksheet part.
+                    workbookPart.DeletePart(worksheetPart);
+
+                    // Save the workbook.
+                    //workbookPart.Workbook.Save();
+                    //spreadsheetDocument.Save();
+                //}
+                return $"{sheetName} deleted successfully..";
+            }
+            catch (Exception ex)
+            {
+                return $"ERROR: {ex.Message}";
+            }
+        }
+
+        #endregion   // End of delete a worksheet
         #region // InsertSharedStringItem Function to insert text into SharedStringTablePart //
         // Given text and a SharedStringTablePart, creates a SharedStringItem with the specified text 
         // and inserts it into the SharedStringTablePart. If the item already exists, returns its index.
@@ -1349,7 +1452,15 @@ namespace KDS_Module_Vx
 
             // Append the new worksheet and associate it with the workbook.
             Sheet sheet = new Sheet() { Id = relationshipId, SheetId = sheetId, Name = sheetName };
-            sheets.Append(sheet);
+            //sheets.Append(sheet);
+            sheets.InsertAt(sheet,0);
+
+            // Set Worksheet at location 0 (i.e. my imported Data Sheet)  to be the Activetab/sheet when the file is opened.
+            WorkbookView _workbookView = workbookPart.Workbook.BookViews.ChildElements.First<WorkbookView>();
+            if (_workbookView != null)
+            {
+                _workbookView.ActiveTab = 0; // 0 for first or whatever tab you want to use
+            };
             workbookPart.Workbook.Save();
 
             return newWorksheetPart;
